@@ -32,7 +32,7 @@ all:
 
 debug:
 	$(MAKE) MODE=debug all
-	./ft_ping "10.13.2.4"
+	./ft_ping "8.8.8.8"
 
 $(OBJ_DIR):
 	mkdir -p $(OBJ_DIR)
