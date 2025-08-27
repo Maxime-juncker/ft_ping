@@ -2,29 +2,106 @@
 #include <bits/types/struct_timeval.h>
 #include <netinet/in.h>
 #include <netinet/ip_icmp.h>
+#include <stddef.h>
 #include <stdint.h>
 #include <stdio.h>
 #include <string.h>
 #include <sys/socket.h>
 #include <unistd.h>
 #include <stdlib.h>
-#include <sys/epoll.h>
 #include <sys/select.h>
 #include <sys/fcntl.h>
 #include <netdb.h>
 #include <arpa/inet.h>
+#include <sys/time.h>
+#include <signal.h>
 
-#define MAX_EVENT 10
+#define MISSING_ARG_TXT "ft_ping: missing host operand\n" \
+						"Try 'ft_ping --help' or 'ft_ping --usage' for more information.\n"
+#define UNKNOWN_HOST_TXT "ft_ping: unknown host\n"
+#define HELP_TXT "Usage: ping [OPTION...] HOST ...\n"								\
+"Send ICMP ECHO_REQUEST packets to network hosts.\n\n"								\
+"  Options valid for all request types:\n\n"										\
+"   -d, --debug                show debug logs\n"									\
+"   -i, --interval=NUMBER      wait NUMBER seconds between sending each packet\n"	\
+"   -n, --numeric              do not resolve host addresses\n"						\
+"   -r, --ignore-routing       send directly to a host on an attached network\n"	\
+"       --ttl=N                specify N as time-to-live\n"							\
+"   -T, --tos=NUM              set type of service (TOS) to NUM\n"					\
+"   -v, --verbose              verbose output\n"									\
+"   -w, --timeout=N            stop after N seconds\n"								\
+"   -W, --linger=N             number of seconds to wait for response\n\n"			\
+"  Options valid for --echo requests:\n\n"											\
+"   -f, --flood                flood ping (root only)]\n"							\
+"       --ip-timestamp=FLAG    IP timestamp of type FLAG, which is one of\n"		\
+"                              \"tsonly\" and \"tsaddr\"\n"							\
+"   -l, --preload=NUMBER       send NUMBER packets as fast as possible before\n"	\
+"                              falling into normal mode of behavior (root only)\n"	\
+"   -q, --quiet                quiet output\n"										\
+"   -s, --size=NUMBER          send NUMBER data octets\n\n"							\
+"   -?, --help                 give this help list\n"								\
+"      --usage                give a short usage message\n"							\
+"  -V, --version              print program version\n"
+
+#define DEBUG			0b000001
+#define NUMERIC			0b000010
+#define IGNORE_ROUTING	0b000100
+#define VERBOSE			0b001000
+#define FLOOD			0b010000
+#define QUIET			0b100000
+
+typedef struct s_settings
+{
+	char*	name;
+	int		interval;
+	size_t	packet_size;
+	size_t	ttl;	
+	int		timeout;
+	int		TOS;
+	int		linger;
+
+	uint16_t	flags;
+
+}	t_settings;
+
+int stop = 0;
+
+void sig_handler(int signal)
+{
+	if (signal == SIGINT)
+	{
+		stop = SIGINT;
+	}
+}
+
+
+long	get_current_time_ms(void)
+{
+	long long		time;
+	struct timeval	
+	tv;
+
+	gettimeofday(&tv, NULL);
+	time = (tv.tv_sec * 1000 + tv.tv_usec);
+	return (time);
+}
+
+
 
 typedef struct s_connection_info
 {
 	char*				ip;
 	struct addrinfo*	addrinfo;
-	char				packet[64];
+	char				packet[56];
 	struct sockaddr_in	addr;
 	int					socketfd;
 
-	int					epollfd;
+	struct icmp*		icmp;
+
+	size_t				packet_sent;
+	size_t				packet_received;
+
+	t_settings*			settings;
 
 } t_connection_info;
 
@@ -51,6 +128,24 @@ uint16_t calculate_checksum(void *b, int len)
     return result;
 }
 
+void get_new_packet(t_connection_info* info)
+{
+	static int seq = 0;
+
+	struct icmp* icmp = (struct icmp*)info->packet;
+	bzero(info->packet, sizeof(info->packet));
+
+	icmp->icmp_type = ICMP_ECHO;
+	icmp->icmp_code = 0;
+	icmp->icmp_id = getpid();
+	icmp->icmp_seq = seq;
+	icmp->icmp_cksum = calculate_checksum((unsigned char*)info->packet, 56);
+
+	info->icmp = icmp;
+
+	seq++;
+}
+
 int create_socket(t_connection_info *info)
 {
 	bzero(&info->addr, sizeof(struct sockaddr_in));
@@ -63,17 +158,13 @@ int create_socket(t_connection_info *info)
 		return -1;
 	}
 
+	if (setsockopt(info->socketfd, IPPROTO_IP, IP_TTL, &info->settings->ttl, sizeof(size_t)) != 0)
+	{
+		perror("setting ttl failed");
+		return -1;
+	}
+
 	inet_pton(AF_INET, info->ip, &(info->addr.sin_addr));
-
-	struct icmp *icmp = (struct icmp *)info->packet;
-	bzero(info->packet, sizeof(info->packet));
-
-	icmp->icmp_type = ICMP_ECHO;
-	icmp->icmp_code = 0;
-	icmp->icmp_id = getpid();
-	icmp->icmp_seq = 0;
-	icmp->icmp_cksum = calculate_checksum((unsigned char *)info->packet, 64);
-
 	return 0;
 }
 
@@ -89,83 +180,101 @@ struct addrinfo* getAddrIP(const char* name, t_connection_info* info)
 	hint.ai_socktype = SOCK_RAW;
 	hint.ai_protocol = IPPROTO_ICMP;
 	
-	printf("+++ addr info for %s +++\n", name);
 	status = getaddrinfo(name, 0, &hint, &res);
 	if (status != 0)
 	{
-		perror(gai_strerror(status));
+		dprintf(2, UNKNOWN_HOST_TXT);
 		return NULL;
 	}
 
-	char *ip = NULL;
-	while (res != NULL)
+	if (res->ai_family == AF_INET)
 	{
-		if (res->ai_family == AF_INET)
-		{
-			struct sockaddr_in* ip4 = (struct sockaddr_in*)res->ai_addr;
-			inet_ntop(res->ai_family, &(ip4->sin_addr), buffer, sizeof(buffer));
-			printf("IPv4: %s\n", buffer);
-			info->ip = strdup(buffer);
-			return res;
-		}
-		// else
-		// {
-		// 	struct sockaddr_in6 *ipv6 = (struct sockaddr_in6 *)res->ai_addr;
-		// 	inet_ntop(res->ai_family, &(ipv6->sin6_addr), buffer, sizeof buffer);
-		// 	printf("IPv6: %s\n", buffer);
-		// }
-		res = res->ai_next;
+		struct sockaddr_in* ip4 = (struct sockaddr_in*)res->ai_addr;
+		inet_ntop(res->ai_family, &(ip4->sin_addr), buffer, sizeof(buffer));
+		info->ip = strdup(buffer);
 	}
 
-	freeaddrinfo(res);
-	printf("resolve %s to %s\n", name, ip);
 	return res;
+}
+
+uint16_t parse(int argc, char* argv[])
+{
+
 }
 
 int main(int argc, char *argv[])
 {
 	if (argc < 2)
 	{
-		printf("missing arg");
+		dprintf(2, MISSING_ARG_TXT);
 		return 1;
 	}
 
+	if (argc == 3)
+	{
+		printf(HELP_TXT);
+		return 0;
+	}
+
+	signal(SIGINT, &sig_handler);
+	t_settings settings;
+	bzero(&settings, sizeof(t_settings));
+	settings.ttl = 255;
+	settings.interval = 1;
+	settings.packet_size = 64;
+	settings.name = argv[1];
 	
 	t_connection_info info;
+	bzero(&info, sizeof(t_connection_info));
 	info.addrinfo = getAddrIP(argv[1], &info);
+	if (info.addrinfo == NULL)
+	{
+		return 1;
+	}
 
 	if (create_socket(&info) != 0)
 		exit(1);
-	// if (create_server(&info) != 0)
-	// 	exit(1); //TODO: close socket
-	
-	// struct epoll_event events[MAX_EVENT];
 
 	fd_set readfds;
-
 	struct timeval tv;
-
 	tv.tv_sec = 5;
 	tv.tv_usec = 0;
 
-	while (1)
+	printf("PING %s (%s): %d data bytes\n", argv[1], info.ip, 64);
+
+	while (stop == 0)
 	{
+
+		get_new_packet(&info);
 
 		FD_ZERO(&readfds);
 		FD_SET(info.socketfd, &readfds);
 
-		printf("sending: %ldb to %s\n",
-		 sendto(info.socketfd, info.packet, sizeof(info.packet), 0, (struct sockaddr *)&info.addr, sizeof(info.addr)),
-		 info.ip);
+		long before = get_current_time_ms();
+		ssize_t nbsent = sendto(info.socketfd, info.packet, sizeof(info.packet), 0, (struct sockaddr *)&info.addr, sizeof(info.addr));
+		if (nbsent < 0)
+			perror("sendto failed");
 
+		info.packet_sent++;
+		ssize_t bytes = 0;
 		int result = select(info.socketfd + 1, &readfds, NULL, NULL, &tv);
-		if (result > 0 && FD_ISSET(info.socketfd, &readfds)) {
+		if (result > 0 && FD_ISSET(info.socketfd, &readfds))
+		{
 			char buffer[1024];
-			ssize_t bytes = recv(info.socketfd, buffer, sizeof(buffer), 0);
-			printf("%ld\n", bytes);	
+			bytes = recv(info.socketfd, buffer, sizeof(buffer), 0);
+			info.packet_received++;
 		}
+		
+		long after = get_current_time_ms();
+
+		float timer = (float)(after - before) / 1000;
+
+		printf("%ld bytes from %s: icmp_seq=%d ttl=TODO time=%.3f ms\n", bytes, info.ip, info.icmp->icmp_seq, timer);
 
 		sleep(1);
-
 	}
+
+	printf("--- %s ping statistics ---\n", argv[1]);
+	int packet_loss = 100 - ((float)info.packet_received / (float)info.packet_sent) * 100;
+	printf("%ld packets transmitted, %ld packets received, %d%% packet loss\n", info.packet_sent, info.packet_received, packet_loss);
 }
