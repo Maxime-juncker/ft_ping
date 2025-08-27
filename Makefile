@@ -1,7 +1,8 @@
 NAME = ft_ping
 MODE ?= release
 
-OBJ_DIR = obj-$(MODE)
+INT_DIR = int
+OBJ_DIR = $(addprefix $(INT_DIR)/, obj-$(MODE))
 INCLUDES = -Iincludes
 
 CC = cc
@@ -15,7 +16,7 @@ endif
 VPATH = srcs
 
 SRCS =	main.c			\
-		
+
 OBJS = $(addprefix $(OBJ_DIR)/, $(SRCS:.c=.o))
 DEPS = $(OBJS:.o=.d)
 
@@ -40,12 +41,12 @@ $(OBJ_DIR):
 $(NAME): $(OBJS)
 	$(CC) $(OBJS) $(CLFAGS) -o $(NAME)
 
-$(OBJ_DIR)/%.o: %.c Makefile |  $(OBJ_DIR)
+$(OBJ_DIR)/%.o: %.c Makefile | $(OBJ_DIR)
 	$(CC) $(CFLAGS) -c $< -o $@
 	printf "$(GRAY)compiling: $(BLUE)%-40s $(GRAY)[%d/%d]\n" "$<" "$$(ls $(OBJ_DIR) | grep -c '\.o')" "$(words $(SRCS))"
 
 clean:
-	rm -rf obj-*
+	rm -rf $(INT_DIR)
 
 fclean: clean
 	rm -f $(NAME)
