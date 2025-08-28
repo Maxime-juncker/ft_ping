@@ -115,10 +115,47 @@ struct addrinfo* getAddrIP(const char* name, t_connection_info* info)
 	return res;
 }
 
+float update_stats(t_connection_info* infos, long before) 
+{
+	long after = get_current_time_ms();
+	float timer = (float)(after - before) / 1000;
+	if (timer > 0)
+	{
+		infos->stats.total_time += timer;
+		infos->stats.number_of_ping++;
+		if (timer < infos->stats.min || infos->stats.min == 0)
+			infos->stats.min = timer;
+		else if (timer > infos->stats.max || infos->stats.max == 0)
+			infos->stats.max = timer;
+	}
+
+	return timer;
+}
+
+int receive_packet(t_connection_info* infos)
+{
+	char				buffer[1024];
+	struct sockaddr_in	addr;
+	socklen_t			addr_len = sizeof(socklen_t);
+	ssize_t				bytes;
+	struct iphdr*		hdr;
+
+	bytes = recvfrom(infos->socketfd, buffer, sizeof(buffer), 0, (struct sockaddr*)&addr, &addr_len);
+	if (bytes <= 0)
+	{
+		perror("recvfrom");
+		return 1;
+	}
+
+	hdr = (struct iphdr*)buffer;
+	infos->packet_ttl = hdr->ttl;
+	infos->stats.packet_received++;
+	return 0;
+}
+
 void ping_loop(t_connection_info* infos)
 {
 	fd_set			readfds;
-	struct iphdr*	hdr;
 	struct timeval	tv;
 	tv.tv_sec = 5;
 	tv.tv_usec = 0;
@@ -136,34 +173,24 @@ void ping_loop(t_connection_info* infos)
 		if (nbsent < 0)
 			perror("sendto failed");
 
-		infos->packet_sent++;
+		infos->stats.packet_sent++;
 		ssize_t bytes = 0;
 		int result = select(infos->socketfd + 1, &readfds, NULL, NULL, &tv);
 		if (result > 0 && FD_ISSET(infos->socketfd, &readfds))
 		{
-			char buffer[1024];
-			struct sockaddr_in addr;
-			socklen_t addr_len = sizeof(addr);
-			bytes = recvfrom(infos->socketfd, buffer, sizeof(buffer), 0, (struct sockaddr*)&addr, &addr_len);
-			if (bytes < 0)
+			if (receive_packet(infos) != 0)
+				continue;
+			float timer = update_stats(infos, before);
+			if (!get_option(infos->options, QUIET)->data)
 			{
-				perror("recvfrom");
+				printf("%ld bytes from %s: icmp_seq=%d ttl=%u time=%.3f ms\n",
+					bytes, infos->ip, infos->icmp->icmp_seq, infos->packet_ttl, timer);
 			}
 
-			hdr = (struct iphdr*)buffer;
-			infos->packet_received++;
 		}
 		
-		long after = get_current_time_ms();
-
-		float timer = (float)(after - before) / 1000;
-
-		if (!get_option(infos->options, QUIET)->data)
-			printf("%ld bytes from %s: icmp_seq=%d ttl=%u time=%.3f ms\n", bytes, infos->ip, infos->icmp->icmp_seq, hdr->ttl, timer);
-
 		sleep((long)get_option(infos->options, INTERVAL)->data);
 	}
-
 }
 
 int init(t_connection_info* infos, int argc, char* argv[])
@@ -177,7 +204,7 @@ int init(t_connection_info* infos, int argc, char* argv[])
 	signal(SIGINT, &sig_handler);
 	bzero(infos, sizeof(t_connection_info));
 
-	infos->options = parse(argc, argv);
+	infos->options = parse_options(argc, argv);
 	if (infos->options == NULL)
 		return 2;
 
@@ -201,9 +228,16 @@ int init(t_connection_info* infos, int argc, char* argv[])
 
 void ping_shutdown(t_connection_info* infos)
 {
+	// calculate statistics
+	int packet_loss = 100 - ((float)infos->stats.packet_received / (float)infos->stats.packet_sent) * 100;
+	float avg = infos->stats.total_time / infos->stats.number_of_ping;
+
+
 	printf("--- %s ping statistics ---\n", infos->name);
-	int packet_loss = 100 - ((float)infos->packet_received / (float)infos->packet_sent) * 100;
-	printf("%ld packets transmitted, %ld packets received, %d%% packet loss\n", infos->packet_sent, infos->packet_received, packet_loss);
+	printf("%ld packets transmitted, %ld packets received, %d%% packet loss\n",
+		infos->stats.packet_sent, infos->stats.packet_received, packet_loss);
+	printf("round-trip min/avg/max/stddev = %.3f/%.3f/%.3f/%.3f ms\n",
+		infos->stats.min, avg, infos->stats.max, 42.0f);
 }
 
 int main(int argc, char *argv[])

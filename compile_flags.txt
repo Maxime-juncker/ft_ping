@@ -1,3 +1,0 @@
--I./includes
--Wextra
--Wall

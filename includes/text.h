@@ -39,7 +39,7 @@
             "\t[--ip-timestamp=FLAG] [--preload=NUMBER] [--pattern=PATTERN]\n"				\
             "\t[--quiet] [--size=NUMBER] [--help] [--usage] [--version]\n"					\
 			"\tHOST ...\n"
-
+#define VERSION_TXT "ft_ping 1.0\nblablablablalblablablablalbalbalbalba[....]\nWritten by mjunker"
 int show_text(t_option* options);
 
 #endif // !TEXT_H

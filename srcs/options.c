@@ -128,7 +128,7 @@ t_option* get_option(t_option* options, int id)
 	return NULL;
 }
 
-t_option* parse(int argc, char* argv[])
+t_option* parse_options(int argc, char* argv[])
 {
 	t_option		options[] =
 	{
@@ -170,14 +170,17 @@ t_option* parse(int argc, char* argv[])
 
 	}
 
-	if (argv[argc-1][0] == '-')
+	if (argv[argc-1][0] == '-' &&
+	 !(get_option(options, VERSION)->data ||
+		get_option(options, HELP)->data ||
+		get_option(options, USAGE)->data))
 	{
 		dprintf(2, "ft_ping: missing host operand\n");
 		dprintf(2, SMALL_HELP_TXT);
 		return NULL;
 	}
+
 	set_option(options, NAME, argv[argc-1]);
-	
 
 	t_option* cpy = malloc(sizeof(options));
 	if (cpy == NULL)

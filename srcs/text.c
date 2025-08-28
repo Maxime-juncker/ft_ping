@@ -14,6 +14,11 @@ int show_text(t_option* options)
 		printf(USAGE_TXT);
 		return 1;
 	}
+	else if ((long)get_option(options, VERSION)->data == 1)
+	{
+		printf(VERSION_TXT);
+		return 1;
+	}
 	if ((long)get_option(options, DEBUG)->data == 1)
 		show_options(options);
 

@@ -48,7 +48,7 @@ typedef struct s_option
 
 }	t_option;
 
-t_option*	parse(int argc, char* argv[]);
+t_option*	parse_options(int argc, char* argv[]);
 void		show_options(t_option* options);
 
 t_option* get_option(t_option* options, int id);
