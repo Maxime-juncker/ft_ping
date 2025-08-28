@@ -1,4 +1,5 @@
 #ifndef OPTION_H
+#define OPTION_H
 
 #define E_UNKNOW -1
 #define E_INVALID -2
@@ -25,6 +26,8 @@ typedef enum e_option_type
 	DEBUG,
 	INTERVAL,
 	TTL,
+	NAME,
+	
 }	option_type;
 
 typedef enum e_ctypes
@@ -46,6 +49,10 @@ typedef struct s_option
 
 }	t_option;
 
-int parse(int argc, char* argv[]);
+t_option*	parse(int argc, char* argv[]);
+void		show_options(t_option* options);
+
+t_option* get_option(t_option* options, int id);
+t_option* set_option(t_option* options, int id, void* data);
 
 #endif // !OPTION_H

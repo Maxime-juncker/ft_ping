@@ -89,7 +89,7 @@ int	load_option(t_option* options, char* argv[], int* idx, int argc)
 	return 0;
 }
 
-void show_option(t_option* options)
+void show_options(t_option* options)
 {
 	int i = 0;
 	printf("+++ options +++\n");
@@ -98,7 +98,7 @@ void show_option(t_option* options)
 		if (options[i].type == INT)
 			printf("\t--%s (-%c) => %ld\n", options[i].name, options[i].c, (long)options[i].data);
 		if (options[i].type == STRING)
-			printf("\t--%s (-%c) => %s\n", options[i].name, options[i].c, (char*)options[i].data);
+			printf("\t--%s (-%c) => \"%s\"\n", options[i].name, options[i].c, (char*)options[i].data);
 		if (options[i].type == VOID)
 			printf("\t--%s (-%c) => %p\n", options[i].name, options[i].c, options[i].data);
 		i++;
@@ -106,29 +106,51 @@ void show_option(t_option* options)
 	printf("\n");
 }
 
-int parse(int argc, char* argv[])
+t_option* set_option(t_option* options, int id, void* data)
+{
+	t_option* option = get_option(options, id);
+	if (options == NULL)
+		return NULL;
+	option->data = data;
+	return option;
+}
+
+t_option* get_option(t_option* options, int id)
+{
+	int i = 0;
+	while (options[i].id != NONE)
+	{
+		if (options[i].id == id)
+			return &options[i];
+		i++;
+	}
+	return NULL;
+}
+
+t_option* parse(int argc, char* argv[])
 {
 	t_option		options[] =
 	{
-		{HELP,				'?',	"help",				0, (void*)0x0, INT },
-		{VERBOSE,			'v',	"verbose",			0, (void*)0x0, INT },
-		{FLOOD,				'f',	"flood",			0, (void*)0x0, INT },
-		{IP_TIMESTAMP,		'\0',	"ip-timestamp",		1, (void*)0x0, INT },
-		{PRELOAD,			'p',	"preload",			1, (void*)0x0, INT },
-		{NUMERIC,			'n',	"numeric",			0, (void*)0x0, INT },
-		{TIMEOUT,			't',	"timeout",			1, (void*)0x0, INT },
-		{LINGER,			'l',	"linger",			1, (void*)0x0, INT },
-		{PATTERN,			'p',	"pattern",			1, (void*)0x0, INT },
-		{IGNORE_ROUTING,	'r',	"ignore-routine",	0, (void*)0x0, INT },
-		{SIZE,				's',	"size",				1, (void*)0x0, INT },
-		{TOS,				'T',	"tos",				1, (void*)0x0, INT },
-		{QUIET,				'q',	"quiet",			0, (void*)0x0, INT },
-		{VERSION,			'V',	"version",			0, (void*)0x0, INT },
-		{USAGE,				'\0',	"usage",			0, (void*)0x0, INT },
-		{DEBUG,				'd',	"debug",			0, (void*)0x0, INT },
-		{INTERVAL,			'i',	"interval",			1, (void*)0x0, INT },
-		{TTL,				'\0',	"ttl",				1, (void*)0x0, INT },
-		{NONE,				'\0',	"",					0, (void*)0x0, INT },
+		{HELP,				'?',	"help",				0, (void*)0x0,	INT },
+		{VERBOSE,			'v',	"verbose",			0, (void*)0x0,	INT },
+		{FLOOD,				'f',	"flood",			0, (void*)0x0,	INT },
+		{IP_TIMESTAMP,		'\0',	"ip-timestamp",		1, (void*)0x0,	INT },
+		{PRELOAD,			'p',	"preload",			1, (void*)0x0,	INT },
+		{NUMERIC,			'n',	"numeric",			0, (void*)0x0,	INT },
+		{TIMEOUT,			't',	"timeout",			1, (void*)0x0,	INT },
+		{LINGER,			'l',	"linger",			1, (void*)0x0,	INT },
+		{PATTERN,			'p',	"pattern",			1, (void*)0x0,	INT },
+		{IGNORE_ROUTING,	'r',	"ignore-routine",	0, (void*)0x0,	INT },
+		{SIZE,				's',	"size",				1, (void*)56,	INT },
+		{TOS,				'T',	"tos",				1, (void*)0x0,	INT },
+		{QUIET,				'q',	"quiet",			0, (void*)0x0,	INT },
+		{VERSION,			'V',	"version",			0, (void*)0x0,	INT },
+		{USAGE,				'\0',	"usage",			0, (void*)0x0,	INT },
+		{DEBUG,				'd',	"debug",			0, (void*)0x0,	INT },
+		{INTERVAL,			'i',	"interval",			1, (void*)0x1,	INT },
+		{TTL,				'\0',	"ttl",				1, (void*)255,	INT },
+		{NAME,				'\0',	"",					0, (void*)0x0,	STRING },
+		{NONE,				'\0',	"",					0, (void*)0x0,	INT },
 	};
 
 	for (int i = 1; i < argc; i++)
@@ -138,7 +160,7 @@ int parse(int argc, char* argv[])
 		{
 			dprintf(2, "ping: unrecognized option '%s'\n", argv[i]);
 			dprintf(2, "Try 'ping --help' or 'ping --usage' for more information.\n");
-			return 1;
+			return NULL;
 		}
 		else if (error == E_INVALID)
 		{
@@ -147,9 +169,13 @@ int parse(int argc, char* argv[])
 
 	}
 
-	show_option(options);
-	return 0;
+	set_option(options, NAME, argv[argc-1]);
 
+	t_option* cpy = malloc(sizeof(options));
+	if (cpy == NULL)
+		return NULL;
+	memcpy(cpy, &options, sizeof(options));
+	return cpy;
 }
 
 

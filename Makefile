@@ -17,6 +17,7 @@ VPATH = srcs
 
 SRCS =	main.c			\
 		options.c		\
+		text.c			\
 
 OBJS = $(addprefix $(OBJ_DIR)/, $(SRCS:.c=.o))
 DEPS = $(OBJS:.o=.d)
@@ -34,7 +35,7 @@ all:
 
 debug:
 	$(MAKE) MODE=debug all
-	./ft_ping "8.8.8.8"
+	sudo ./ft_ping "google.com"
 
 $(OBJ_DIR):
 	mkdir -p $(OBJ_DIR)

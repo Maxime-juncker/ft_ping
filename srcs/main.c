@@ -6,6 +6,7 @@
 #include <stdint.h>
 #include <stdio.h>
 #include <string.h>
+#include <strings.h>
 #include <sys/socket.h>
 #include <unistd.h>
 #include <stdlib.h>
@@ -17,49 +18,7 @@
 #include <signal.h>
 
 #include "options.h"
-
-#define MISSING_ARG_TXT "ft_ping: missing host operand\n" \
-						"Try 'ft_ping --help' or 'ft_ping --usage' for more information.\n"
-#define UNKNOWN_HOST_TXT "ft_ping: unknown host\n"
-#define HELP_TXT "Usage: ping [OPTION...] HOST ...\n"								\
-"Send ICMP ECHO_REQUEST packets to network hosts.\n\n"								\
-"  Options valid for all request types:\n\n"										\
-"   -d, --debug                show debug logs\n"									\
-"   -i, --interval=NUMBER      wait NUMBER seconds between sending each packet\n"	\
-"   -n, --numeric              do not resolve host addresses\n"						\
-"   -r, --ignore-routing       send directly to a host on an attached network\n"	\
-"       --ttl=N                specify N as time-to-live\n"							\
-"   -T, --tos=NUM              set type of service (TOS) to NUM\n"					\
-"   -v, --verbose              verbose output\n"									\
-"   -w, --timeout=N            stop after N seconds\n"								\
-"   -W, --linger=N             number of seconds to wait for response\n\n"			\
-"  Options valid for --echo requests:\n\n"											\
-"   -f, --flood                flood ping (root only)]\n"							\
-"       --ip-timestamp=FLAG    IP timestamp of type FLAG, which is one of\n"		\
-"                              \"tsonly\" and \"tsaddr\"\n"							\
-"   -l, --preload=NUMBER       send NUMBER packets as fast as possible before\n"	\
-"                              falling into normal mode of behavior (root only)\n"	\
-"   -p, --pattern=PATTERN      fill ICMP packet with given pattern (hex)\n"			\
-"   -q, --quiet                quiet output\n"										\
-"   -s, --size=NUMBER          send NUMBER data octets\n\n"							\
-"   -?, --help                 give this help list\n"								\
-"      --usage                give a short usage message\n"							\
-"  -V, --version              print program version\n"
-
-
-typedef struct s_settings
-{
-	char*	name;
-	int		interval;
-	size_t	packet_size;
-	size_t	ttl;	
-	int		timeout;
-	int		TOS;
-	int		linger;
-
-	uint16_t	flags;
-
-}	t_settings;
+#include "text.h"
 
 int stop = 0;
 
@@ -83,8 +42,6 @@ long	get_current_time_ms(void)
 	return (time);
 }
 
-
-
 typedef struct s_connection_info
 {
 	char*				ip;
@@ -98,7 +55,7 @@ typedef struct s_connection_info
 	size_t				packet_sent;
 	size_t				packet_received;
 
-	t_settings*			settings;
+	t_option*			options;
 
 } t_connection_info;
 
@@ -155,7 +112,8 @@ int create_socket(t_connection_info *info)
 		return -1;
 	}
 
-	if (setsockopt(info->socketfd, IPPROTO_IP, IP_TTL, &info->settings->ttl, sizeof(size_t)) != 0)
+	int ttl = (long)get_option(info->options, TTL)->data;
+	if (setsockopt(info->socketfd, IPPROTO_IP, IP_TTL, &ttl, sizeof(size_t)) != 0)
 	{
 		perror("setting ttl failed");
 		return -1;
@@ -201,23 +159,19 @@ int main(int argc, char *argv[])
 		dprintf(2, MISSING_ARG_TXT);
 		return 1;
 	}
-
-	if (parse(argc, argv) == 1)
-		return 1;
-
-	return 0;
-
 	signal(SIGINT, &sig_handler);
-	t_settings settings;
-	bzero(&settings, sizeof(t_settings));
-	settings.ttl = 255;
-	settings.interval = 1;
-	settings.packet_size = 64;
-	settings.name = argv[1];
-	
+
 	t_connection_info info;
 	bzero(&info, sizeof(t_connection_info));
-	info.addrinfo = getAddrIP(argv[1], &info);
+
+	info.options = parse(argc, argv);
+	if (info.options == NULL)
+		return 1;
+
+	if (show_text(info.options))
+		return 0;
+
+	info.addrinfo = getAddrIP(get_option(info.options, NAME)->data, &info);
 	if (info.addrinfo == NULL)
 	{
 		return 1;
@@ -235,7 +189,6 @@ int main(int argc, char *argv[])
 
 	while (stop == 0)
 	{
-
 		get_new_packet(&info);
 
 		FD_ZERO(&readfds);
@@ -262,7 +215,7 @@ int main(int argc, char *argv[])
 
 		printf("%ld bytes from %s: icmp_seq=%d ttl=TODO time=%.3f ms\n", bytes, info.ip, info.icmp->icmp_seq, timer);
 
-		sleep(1);
+		sleep((long)get_option(info.options, INTERVAL)->data);
 	}
 
 	printf("--- %s ping statistics ---\n", argv[1]);
