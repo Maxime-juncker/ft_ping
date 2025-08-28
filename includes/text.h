@@ -3,6 +3,7 @@
 
 #include "options.h"
 
+#define SMALL_HELP_TXT "Try 'ft_ping --help' or 'ft_ping --usage' for more information.\n"
 #define MISSING_ARG_TXT "ft_ping: missing host operand\n" \
 						"Try 'ft_ping --help' or 'ft_ping --usage' for more information.\n"
 #define UNKNOWN_HOST_TXT "ft_ping: unknown host\n"

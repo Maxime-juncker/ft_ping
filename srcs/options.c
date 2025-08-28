@@ -4,6 +4,7 @@
 #include <string.h>
 
 #include "options.h"
+#include "text.h"
 
 t_option*	load_short_option(t_option* options, char c)
 {
@@ -158,18 +159,25 @@ t_option* parse(int argc, char* argv[])
 		int	error = load_option(options, argv, &i, argc);
 		if (error == E_UNKNOW)
 		{
-			dprintf(2, "ping: unrecognized option '%s'\n", argv[i]);
-			dprintf(2, "Try 'ping --help' or 'ping --usage' for more information.\n");
+			dprintf(2, "ft_ping: unrecognized option '%s'\n", argv[i]);
+			dprintf(2, SMALL_HELP_TXT);
 			return NULL;
 		}
 		else if (error == E_INVALID)
 		{
-			dprintf(2, "ping: invalid value\n");
+			dprintf(2, "ft_ping: invalid value\n");
 		}
 
 	}
 
+	if (argv[argc-1][0] == '-')
+	{
+		dprintf(2, "ft_ping: missing host operand\n");
+		dprintf(2, SMALL_HELP_TXT);
+		return NULL;
+	}
 	set_option(options, NAME, argv[argc-1]);
+	
 
 	t_option* cpy = malloc(sizeof(options));
 	if (cpy == NULL)

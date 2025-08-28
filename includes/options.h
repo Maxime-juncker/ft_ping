@@ -27,7 +27,6 @@ typedef enum e_option_type
 	INTERVAL,
 	TTL,
 	NAME,
-	
 }	option_type;
 
 typedef enum e_ctypes

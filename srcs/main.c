@@ -1,6 +1,7 @@
 #include <arpa/inet.h>
 #include <bits/types/struct_timeval.h>
 #include <netinet/in.h>
+#include <netinet/ip.h>
 #include <netinet/ip_icmp.h>
 #include <stddef.h>
 #include <stdint.h>
@@ -8,6 +9,7 @@
 #include <string.h>
 #include <strings.h>
 #include <sys/socket.h>
+#include <sys/types.h>
 #include <unistd.h>
 #include <stdlib.h>
 #include <sys/select.h>
@@ -19,6 +21,7 @@
 
 #include "options.h"
 #include "text.h"
+#include "ft_ping.h"
 
 int stop = 0;
 
@@ -40,46 +43,6 @@ long	get_current_time_ms(void)
 	gettimeofday(&tv, NULL);
 	time = (tv.tv_sec * 1000 + tv.tv_usec);
 	return (time);
-}
-
-typedef struct s_connection_info
-{
-	char*				ip;
-	struct addrinfo*	addrinfo;
-	char				packet[56];
-	struct sockaddr_in	addr;
-	int					socketfd;
-
-	struct icmp*		icmp;
-
-	size_t				packet_sent;
-	size_t				packet_received;
-
-	t_option*			options;
-
-} t_connection_info;
-
-uint16_t calculate_checksum(void *b, int len)
-{
-    uint16_t *buf = b;
-    unsigned int sum = 0;
-    uint16_t result;
-
-    for (sum = 0; len > 1; len -= 2)
-	{
-        sum += *buf++;
-    }
-
-    if (len == 1)
-	{
-        sum += *(unsigned char*)buf << 8;
-    }
-
-    while (sum >> 16)
-        sum = (sum & 0xFFFF) + (sum >> 16);
-
-    result = ~sum;
-    return result;
 }
 
 void get_new_packet(t_connection_info* info)
@@ -152,73 +115,105 @@ struct addrinfo* getAddrIP(const char* name, t_connection_info* info)
 	return res;
 }
 
-int main(int argc, char *argv[])
+void ping_loop(t_connection_info* infos)
 {
-	if (argc < 2)
-	{
-		dprintf(2, MISSING_ARG_TXT);
-		return 1;
-	}
-	signal(SIGINT, &sig_handler);
-
-	t_connection_info info;
-	bzero(&info, sizeof(t_connection_info));
-
-	info.options = parse(argc, argv);
-	if (info.options == NULL)
-		return 1;
-
-	if (show_text(info.options))
-		return 0;
-
-	info.addrinfo = getAddrIP(get_option(info.options, NAME)->data, &info);
-	if (info.addrinfo == NULL)
-	{
-		return 1;
-	}
-
-	if (create_socket(&info) != 0)
-		exit(1);
-
-	fd_set readfds;
-	struct timeval tv;
+	fd_set			readfds;
+	struct iphdr*	hdr;
+	struct timeval	tv;
 	tv.tv_sec = 5;
 	tv.tv_usec = 0;
 
-	printf("PING %s (%s): %d data bytes\n", argv[1], info.ip, 64);
-
 	while (stop == 0)
 	{
-		get_new_packet(&info);
+		get_new_packet(infos);
 
 		FD_ZERO(&readfds);
-		FD_SET(info.socketfd, &readfds);
+		FD_SET(infos->socketfd, &readfds);
 
 		long before = get_current_time_ms();
-		ssize_t nbsent = sendto(info.socketfd, info.packet, sizeof(info.packet), 0, (struct sockaddr *)&info.addr, sizeof(info.addr));
+		ssize_t nbsent = sendto(infos->socketfd, infos->packet, sizeof(infos->packet), 0,
+						  (struct sockaddr *)&infos->addr, sizeof(infos->addr));
 		if (nbsent < 0)
 			perror("sendto failed");
 
-		info.packet_sent++;
+		infos->packet_sent++;
 		ssize_t bytes = 0;
-		int result = select(info.socketfd + 1, &readfds, NULL, NULL, &tv);
-		if (result > 0 && FD_ISSET(info.socketfd, &readfds))
+		int result = select(infos->socketfd + 1, &readfds, NULL, NULL, &tv);
+		if (result > 0 && FD_ISSET(infos->socketfd, &readfds))
 		{
 			char buffer[1024];
-			bytes = recv(info.socketfd, buffer, sizeof(buffer), 0);
-			info.packet_received++;
+			struct sockaddr_in addr;
+			socklen_t addr_len = sizeof(addr);
+			bytes = recvfrom(infos->socketfd, buffer, sizeof(buffer), 0, (struct sockaddr*)&addr, &addr_len);
+			if (bytes < 0)
+			{
+				perror("recvfrom");
+			}
+
+			hdr = (struct iphdr*)buffer;
+			infos->packet_received++;
 		}
 		
 		long after = get_current_time_ms();
 
 		float timer = (float)(after - before) / 1000;
 
-		printf("%ld bytes from %s: icmp_seq=%d ttl=TODO time=%.3f ms\n", bytes, info.ip, info.icmp->icmp_seq, timer);
+		if (!get_option(infos->options, QUIET)->data)
+			printf("%ld bytes from %s: icmp_seq=%d ttl=%u time=%.3f ms\n", bytes, infos->ip, infos->icmp->icmp_seq, hdr->ttl, timer);
 
-		sleep((long)get_option(info.options, INTERVAL)->data);
+		sleep((long)get_option(infos->options, INTERVAL)->data);
 	}
 
-	printf("--- %s ping statistics ---\n", argv[1]);
-	int packet_loss = 100 - ((float)info.packet_received / (float)info.packet_sent) * 100;
-	printf("%ld packets transmitted, %ld packets received, %d%% packet loss\n", info.packet_sent, info.packet_received, packet_loss);
+}
+
+int init(t_connection_info* infos, int argc, char* argv[])
+{
+	if (argc < 2)
+	{
+		dprintf(2, MISSING_ARG_TXT);
+		return 1;
+	}
+
+	signal(SIGINT, &sig_handler);
+	bzero(infos, sizeof(t_connection_info));
+
+	infos->options = parse(argc, argv);
+	if (infos->options == NULL)
+		return 2;
+
+	if (show_text(infos->options))
+		return 1;
+
+	infos->name = get_option(infos->options, NAME)->data;
+	infos->addrinfo = getAddrIP(infos->name, infos);
+	if (infos->addrinfo == NULL)
+	{
+		return 1;
+	}
+
+	if (create_socket(infos) != 0)
+		return 1;
+
+	printf("PING %s (%s): %d data bytes\n", infos->name, infos->ip, 64);
+
+	return 0;
+}
+
+void ping_shutdown(t_connection_info* infos)
+{
+	printf("--- %s ping statistics ---\n", infos->name);
+	int packet_loss = 100 - ((float)infos->packet_received / (float)infos->packet_sent) * 100;
+	printf("%ld packets transmitted, %ld packets received, %d%% packet loss\n", infos->packet_sent, infos->packet_received, packet_loss);
+}
+
+int main(int argc, char *argv[])
+{
+	t_connection_info info;
+
+	int error = init(&info, argc, argv);
+	if (error != 0)
+		return error;
+
+	ping_loop(&info);
+	ping_shutdown(&info);
 }

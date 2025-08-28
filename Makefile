@@ -17,6 +17,7 @@ VPATH = srcs
 
 SRCS =	main.c			\
 		options.c		\
+		utils.c			\
 		text.c			\
 
 OBJS = $(addprefix $(OBJ_DIR)/, $(SRCS:.c=.o))
