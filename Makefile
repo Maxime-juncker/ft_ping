@@ -16,6 +16,7 @@ endif
 VPATH = srcs
 
 SRCS =	main.c			\
+		options.c		\
 
 OBJS = $(addprefix $(OBJ_DIR)/, $(SRCS:.c=.o))
 DEPS = $(OBJS:.o=.d)

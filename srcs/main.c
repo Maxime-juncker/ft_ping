@@ -16,6 +16,8 @@
 #include <sys/time.h>
 #include <signal.h>
 
+#include "options.h"
+
 #define MISSING_ARG_TXT "ft_ping: missing host operand\n" \
 						"Try 'ft_ping --help' or 'ft_ping --usage' for more information.\n"
 #define UNKNOWN_HOST_TXT "ft_ping: unknown host\n"
@@ -37,18 +39,13 @@
 "                              \"tsonly\" and \"tsaddr\"\n"							\
 "   -l, --preload=NUMBER       send NUMBER packets as fast as possible before\n"	\
 "                              falling into normal mode of behavior (root only)\n"	\
+"   -p, --pattern=PATTERN      fill ICMP packet with given pattern (hex)\n"			\
 "   -q, --quiet                quiet output\n"										\
 "   -s, --size=NUMBER          send NUMBER data octets\n\n"							\
 "   -?, --help                 give this help list\n"								\
 "      --usage                give a short usage message\n"							\
 "  -V, --version              print program version\n"
 
-#define DEBUG			0b000001
-#define NUMERIC			0b000010
-#define IGNORE_ROUTING	0b000100
-#define VERBOSE			0b001000
-#define FLOOD			0b010000
-#define QUIET			0b100000
 
 typedef struct s_settings
 {
@@ -197,11 +194,6 @@ struct addrinfo* getAddrIP(const char* name, t_connection_info* info)
 	return res;
 }
 
-uint16_t parse(int argc, char* argv[])
-{
-
-}
-
 int main(int argc, char *argv[])
 {
 	if (argc < 2)
@@ -210,11 +202,10 @@ int main(int argc, char *argv[])
 		return 1;
 	}
 
-	if (argc == 3)
-	{
-		printf(HELP_TXT);
-		return 0;
-	}
+	if (parse(argc, argv) == 1)
+		return 1;
+
+	return 0;
 
 	signal(SIGINT, &sig_handler);
 	t_settings settings;
