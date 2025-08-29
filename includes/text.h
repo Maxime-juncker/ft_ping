@@ -7,7 +7,7 @@
 #define MISSING_ARG_TXT "ft_ping: missing host operand\n" \
 						"Try 'ft_ping --help' or 'ft_ping --usage' for more information.\n"
 #define UNKNOWN_HOST_TXT "ft_ping: unknown host\n"
-#define HELP_TXT "Usage: ping [OPTION...] HOST ...\n"								\
+#define HELP_TXT "Usage: ft_ping [OPTION...] HOST ...\n"								\
 "Send ICMP ECHO_REQUEST packets to network hosts.\n\n"								\
 "  Options valid for all request types:\n\n"										\
 "   -d, --debug                show debug logs\n"									\

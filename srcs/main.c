@@ -1,5 +1,7 @@
 #include <arpa/inet.h>
+#include <math.h>
 #include <bits/types/struct_timeval.h>
+#include <math.h>
 #include <netinet/in.h>
 #include <netinet/ip.h>
 #include <netinet/ip_icmp.h>
@@ -47,24 +49,31 @@ long	get_current_time_ms(void)
 
 void get_new_packet(t_connection_info* info)
 {
-	static int seq = 0;
+	static int	seq = 0;
+	size_t		packet_size = (long)get_option(info->options, SIZE)->data;
 
 	struct icmp* icmp = (struct icmp*)info->packet;
-	bzero(info->packet, sizeof(info->packet));
+	bzero(info->packet, packet_size);
 
 	icmp->icmp_type = ICMP_ECHO;
 	icmp->icmp_code = 0;
-	icmp->icmp_id = getpid();
+	icmp->icmp_id = info->pid;
 	icmp->icmp_seq = seq;
-	icmp->icmp_cksum = calculate_checksum((unsigned char*)info->packet, 56);
-
+	icmp->icmp_cksum = calculate_checksum((unsigned char*)info->packet, packet_size);
 	info->icmp = icmp;
-
 	seq++;
 }
 
 int create_socket(t_connection_info *info)
 {
+	// create packet buffer
+	long packet_size = (long)get_option(info->options, SIZE)->data;
+	packet_size = (long)set_option(info->options, SIZE, (void*)(packet_size + sizeof(struct icmp*)))->data;
+	info->packet = calloc(1, packet_size);
+	if (!info->packet)
+		return 1;
+
+	// setup socket
 	bzero(&info->addr, sizeof(struct sockaddr_in));
 	info->addr.sin_family = AF_INET;
 
@@ -121,11 +130,12 @@ float update_stats(t_connection_info* infos, long before)
 	float timer = (float)(after - before) / 1000;
 	if (timer > 0)
 	{
+		infos->stats.total_time_sqr += timer*timer;
 		infos->stats.total_time += timer;
 		infos->stats.number_of_ping++;
 		if (timer < infos->stats.min || infos->stats.min == 0)
 			infos->stats.min = timer;
-		else if (timer > infos->stats.max || infos->stats.max == 0)
+		if (timer > infos->stats.max || infos->stats.max == 0)
 			infos->stats.max = timer;
 	}
 
@@ -137,15 +147,15 @@ int receive_packet(t_connection_info* infos)
 	char				buffer[1024];
 	struct sockaddr_in	addr;
 	socklen_t			addr_len = sizeof(socklen_t);
-	ssize_t				bytes;
 	struct iphdr*		hdr;
 
-	bytes = recvfrom(infos->socketfd, buffer, sizeof(buffer), 0, (struct sockaddr*)&addr, &addr_len);
-	if (bytes <= 0)
+	infos->bytes = recvfrom(infos->socketfd, buffer, sizeof(buffer), 0, (struct sockaddr*)&addr, &addr_len);
+	if (infos->bytes <= 0)
 	{
 		perror("recvfrom");
 		return 1;
 	}
+	infos->bytes -= sizeof(struct iphdr); // only want payload + icmp header
 
 	hdr = (struct iphdr*)buffer;
 	infos->packet_ttl = hdr->ttl;
@@ -168,13 +178,11 @@ void ping_loop(t_connection_info* infos)
 		FD_SET(infos->socketfd, &readfds);
 
 		long before = get_current_time_ms();
-		ssize_t nbsent = sendto(infos->socketfd, infos->packet, sizeof(infos->packet), 0,
+		ssize_t nbsent = sendto(infos->socketfd, infos->packet, (long)get_option(infos->options, SIZE)->data, 0,
 						  (struct sockaddr *)&infos->addr, sizeof(infos->addr));
 		if (nbsent < 0)
 			perror("sendto failed");
-
 		infos->stats.packet_sent++;
-		ssize_t bytes = 0;
 		int result = select(infos->socketfd + 1, &readfds, NULL, NULL, &tv);
 		if (result > 0 && FD_ISSET(infos->socketfd, &readfds))
 		{
@@ -184,7 +192,7 @@ void ping_loop(t_connection_info* infos)
 			if (!get_option(infos->options, QUIET)->data)
 			{
 				printf("%ld bytes from %s: icmp_seq=%d ttl=%u time=%.3f ms\n",
-					bytes, infos->ip, infos->icmp->icmp_seq, infos->packet_ttl, timer);
+		   infos->bytes, infos->ip, infos->icmp->icmp_seq, infos->packet_ttl, timer);
 			}
 
 		}
@@ -212,18 +220,33 @@ int init(t_connection_info* infos, int argc, char* argv[])
 		return 1;
 
 	infos->name = get_option(infos->options, NAME)->data;
+	infos->pid = getpid();
 	infos->addrinfo = getAddrIP(infos->name, infos);
 	if (infos->addrinfo == NULL)
 	{
 		return 1;
 	}
-
+	
 	if (create_socket(infos) != 0)
 		return 1;
 
-	printf("PING %s (%s): %d data bytes\n", infos->name, infos->ip, 64);
+	printf("PING %s (%s): %ld data bytes", infos->name, infos->ip, (long)get_option(infos->options, SIZE)->data - sizeof(struct icmp*));
+	if (get_option(infos->options, VERBOSE)->data)
+		printf(", id %p = %d", (void*)(long)infos->pid, infos->pid);
+	printf("\n");
 
 	return 0;
+}
+
+void cleanup_infos(t_connection_info* infos)
+{
+	freeaddrinfo(infos->addrinfo);
+	// free(infos->packet);
+	free(infos->ip);
+	free(infos->options);
+
+	close(infos->socketfd);
+	exit(0);
 }
 
 void ping_shutdown(t_connection_info* infos)
@@ -231,14 +254,25 @@ void ping_shutdown(t_connection_info* infos)
 	// calculate statistics
 	int packet_loss = 100 - ((float)infos->stats.packet_received / (float)infos->stats.packet_sent) * 100;
 	float avg = infos->stats.total_time / infos->stats.number_of_ping;
+	
+	t_stats stats = infos->stats;
 
+	float variance = stats.number_of_ping*stats.total_time_sqr - (stats.total_time*stats.total_time);
+	if (stats.number_of_ping > 1)
+	{
+		variance /= (stats.number_of_ping * (stats.number_of_ping - 1));
+		variance = sqrt(variance);
+	}
 
 	printf("--- %s ping statistics ---\n", infos->name);
 	printf("%ld packets transmitted, %ld packets received, %d%% packet loss\n",
 		infos->stats.packet_sent, infos->stats.packet_received, packet_loss);
 	printf("round-trip min/avg/max/stddev = %.3f/%.3f/%.3f/%.3f ms\n",
-		infos->stats.min, avg, infos->stats.max, 42.0f);
+		infos->stats.min, avg, infos->stats.max, variance);
+
+	cleanup_infos(infos);
 }
+
 
 int main(int argc, char *argv[])
 {

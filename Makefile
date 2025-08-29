@@ -6,11 +6,11 @@ OBJ_DIR = $(addprefix $(INT_DIR)/, obj-$(MODE))
 INCLUDES = -Iincludes
 
 CC = cc
-CFLAGS = -Wall -Werror -Wextra -MD $(INCLUDES)
+CFLAGS = -Wall -Werror -Wextra -MD $(INCLUDES) -lm
 
 ifeq ($(MODE), debug)
 	CC = gcc
-	CFLAGS = -Wall -Wextra -MD $(INCLUDES) -g3
+	CFLAGS = -Wall -Wextra -MD $(INCLUDES) -g3 -lm
 endif
 
 VPATH = srcs
@@ -42,7 +42,7 @@ $(OBJ_DIR):
 	mkdir -p $(OBJ_DIR)
 
 $(NAME): $(OBJS)
-	$(CC) $(OBJS) $(CLFAGS) -o $(NAME)
+	$(CC) $(OBJS) $(CFLAGS) -o $(NAME)
 
 $(OBJ_DIR)/%.o: %.c Makefile | $(OBJ_DIR)
 	$(CC) $(CFLAGS) -c $< -o $@
