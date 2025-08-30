@@ -25,28 +25,6 @@
 #include "text.h"
 #include "ft_ping.h"
 
-int stop = 0;
-
-void sig_handler(int signal)
-{
-	if (signal == SIGINT)
-	{
-		stop = SIGINT;
-	}
-}
-
-
-long	get_current_time_ms(void)
-{
-	long long		time;
-	struct timeval	
-	tv;
-
-	gettimeofday(&tv, NULL);
-	time = (tv.tv_sec * 1000 + tv.tv_usec);
-	return (time);
-}
-
 void get_new_packet(t_connection_info* info)
 {
 	static int	seq = 0;
@@ -126,7 +104,7 @@ struct addrinfo* getAddrIP(const char* name, t_connection_info* info)
 
 float update_stats(t_connection_info* infos, long before) 
 {
-	long after = get_current_time_ms();
+	long after = get_current_time_micro();
 	float timer = (float)(after - before) / 1000;
 	if (timer > 0)
 	{
@@ -227,7 +205,7 @@ void ping_loop(t_connection_info* infos)
 		FD_ZERO(&readfds);
 		FD_SET(infos->socketfd, &readfds);
 
-		long before = get_current_time_ms();
+		long before = get_current_time_micro();
 		ssize_t nbsent = sendto(infos->socketfd, infos->packet, (long)get_option(infos->options, SIZE)->data, 0,
 						  (struct sockaddr *)&infos->addr, sizeof(infos->addr));
 		if (nbsent < 0)
@@ -255,6 +233,11 @@ void ping_loop(t_connection_info* infos)
 			continue;
 		else
 			sleep((long)get_option(infos->options, INTERVAL)->data);
+
+		long timeout = (long)get_option(infos->options, TIMEOUT)->data;
+		if (timeout > 0 && get_current_time_micro() - infos->timer > timeout)
+			ping_shutdown(infos);
+
 	}
 }
 
@@ -292,6 +275,8 @@ int init(t_connection_info* infos, int argc, char* argv[])
 	if (get_option(infos->options, VERBOSE)->data)
 		printf(", id %p = %d", (void*)(long)infos->pid, infos->pid);
 	printf("\n");
+
+	infos->timer = get_current_time_micro();
 
 	return 0;
 }
@@ -333,6 +318,7 @@ void ping_shutdown(t_connection_info* infos)
 		printf("+++ DEBUG INFOS +++\n");
 		printf("\tpacket_lost =%ld\n", infos->stats.packet_sent-infos->stats.packet_received);
 		printf("\ttotal_time  =%.3fms\n", infos->stats.total_time);
+		printf("%ld, %ld, %ld", infos->timer, get_current_time_micro() , get_current_time_micro()-infos->timer);
 	}
 
 	cleanup_infos(infos);

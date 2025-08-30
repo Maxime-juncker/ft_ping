@@ -1,6 +1,32 @@
 #include <stdint.h>
 #include <stdlib.h>
 #include <string.h>
+#include <signal.h>
+#include <sys/time.h>
+
+
+int stop = 0;
+
+void sig_handler(int signal)
+{
+	if (signal == SIGINT)
+	{
+		stop = SIGINT;
+	}
+}
+
+long	get_current_time_micro(void)
+{
+	long long		time;
+	struct timeval	
+	tv;
+
+	gettimeofday(&tv, NULL);
+	time = (tv.tv_sec * 1000000 + tv.tv_usec);
+	return (time);
+}
+
+
 
 uint16_t calculate_checksum(void *b, int len)
 {

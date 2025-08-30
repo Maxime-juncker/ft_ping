@@ -44,9 +44,14 @@ typedef struct s_connection_info
 
 	char*				buffer_output;
 
+	long				timer;
+
 } t_connection_info;
 
+extern int stop;
 
+void sig_handler(int signal);
+long	get_current_time_micro(void);
 
 void ping_shutdown(t_connection_info* infos);
 void cleanup_infos(t_connection_info* infos);
