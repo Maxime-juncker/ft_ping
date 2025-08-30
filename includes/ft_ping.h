@@ -31,6 +31,9 @@ typedef struct s_connection_info
 	struct addrinfo*	addrinfo;
 	struct sockaddr_in	addr;
 	struct icmp*		icmp;
+
+	struct icmp*		response_icmp;
+	int					is_dup;
 	
 	char*				packet;
 	unsigned int		packet_ttl;
@@ -39,12 +42,16 @@ typedef struct s_connection_info
 	t_option*			options;
 	t_stats				stats;
 
+	char*				buffer_output;
+
 } t_connection_info;
 
 
 
+void ping_shutdown(t_connection_info* infos);
 void cleanup_infos(t_connection_info* infos);
 uint16_t calculate_checksum(void *b, int len);
 
+char	*ft_strjoin(char *s1, char const *s2);
 
 #endif

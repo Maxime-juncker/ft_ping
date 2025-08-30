@@ -144,23 +144,73 @@ float update_stats(t_connection_info* infos, long before)
 
 int receive_packet(t_connection_info* infos)
 {
-	char				buffer[1024];
+	char				buffer[4086];
+	int					prev_seq[10] = {-1};
 	struct sockaddr_in	addr;
 	socklen_t			addr_len = sizeof(socklen_t);
 	struct iphdr*		hdr;
 
 	infos->bytes = recvfrom(infos->socketfd, buffer, sizeof(buffer), 0, (struct sockaddr*)&addr, &addr_len);
-	if (infos->bytes <= 0)
+	if (infos->bytes < 0)
 	{
 		perror("recvfrom");
 		return 1;
 	}
+
+	struct icmp* icmp = (struct icmp*)(buffer + sizeof(struct iphdr));
+	infos->is_dup = 0;
+	for (int i = 0; i < 10; i++)
+	{
+		if (icmp->icmp_seq == prev_seq[i])
+			infos->is_dup = 1;
+	}
+	prev_seq[icmp->icmp_seq%10] = icmp->icmp_seq;
+	infos->response_icmp = icmp;
+
 	infos->bytes -= sizeof(struct iphdr); // only want payload + icmp header
 
 	hdr = (struct iphdr*)buffer;
 	infos->packet_ttl = hdr->ttl;
 	infos->stats.packet_received++;
 	return 0;
+}
+
+void print_info(t_connection_info* infos, float timer)
+{
+	static char buffer[1024];
+
+	if (get_option(infos->options, QUIET)->data)
+		return ;
+
+	if (get_option(infos->options, FLOOD)->data)
+	{
+		printf("\b");
+		return ;
+	}
+
+	bzero(&buffer, 1024);
+	sprintf(buffer, "%ld bytes from %s: icmp_seq=%d ttl=%u time=%.3f ms%s\n",
+	   infos->bytes, infos->ip, infos->icmp->icmp_seq, infos->packet_ttl, timer, infos->is_dup ? " (!DUP)" : "");
+	
+	// to max out performance, print into buffer to avoid stdout
+	size_t preload = (long)get_option(infos->options, PRELOAD)->data;
+	if (preload)
+	{
+		if (infos->stats.packet_sent > preload)
+		{
+			// printf("%s", infos->buffer_output);
+			set_option(infos->options, PRELOAD, 0x0);
+		}
+		else
+		{
+			infos->buffer_output = ft_strjoin(infos->buffer_output, buffer);
+			if (infos->buffer_output == NULL) // TODO: faire foirer le malloc
+				ping_shutdown(infos);
+			return ;
+		}
+	}
+
+	printf("%s", buffer);
 }
 
 void ping_loop(t_connection_info* infos)
@@ -181,7 +231,14 @@ void ping_loop(t_connection_info* infos)
 		ssize_t nbsent = sendto(infos->socketfd, infos->packet, (long)get_option(infos->options, SIZE)->data, 0,
 						  (struct sockaddr *)&infos->addr, sizeof(infos->addr));
 		if (nbsent < 0)
-			perror("sendto failed");
+		{
+			perror("ft_ping: sending packet");
+			ping_shutdown(infos);
+		}
+		if (get_option(infos->options, FLOOD)->data)
+		{
+			printf(".");
+		}
 		infos->stats.packet_sent++;
 		int result = select(infos->socketfd + 1, &readfds, NULL, NULL, &tv);
 		if (result > 0 && FD_ISSET(infos->socketfd, &readfds))
@@ -189,15 +246,15 @@ void ping_loop(t_connection_info* infos)
 			if (receive_packet(infos) != 0)
 				continue;
 			float timer = update_stats(infos, before);
-			if (!get_option(infos->options, QUIET)->data)
-			{
-				printf("%ld bytes from %s: icmp_seq=%d ttl=%u time=%.3f ms\n",
-		   infos->bytes, infos->ip, infos->icmp->icmp_seq, infos->packet_ttl, timer);
-			}
-
+			print_info(infos, timer);
 		}
 		
-		sleep((long)get_option(infos->options, INTERVAL)->data);
+		if (get_option(infos->options, FLOOD)->data)
+			usleep(1);
+		else if (get_option(infos->options, PRELOAD)->data)
+			continue;
+		else
+			sleep((long)get_option(infos->options, INTERVAL)->data);
 	}
 }
 
@@ -206,6 +263,7 @@ int init(t_connection_info* infos, int argc, char* argv[])
 	if (argc < 2)
 	{
 		dprintf(2, MISSING_ARG_TXT);
+		
 		return 1;
 	}
 
@@ -269,6 +327,13 @@ void ping_shutdown(t_connection_info* infos)
 		infos->stats.packet_sent, infos->stats.packet_received, packet_loss);
 	printf("round-trip min/avg/max/stddev = %.3f/%.3f/%.3f/%.3f ms\n",
 		infos->stats.min, avg, infos->stats.max, variance);
+
+	if (get_option(infos->options, DEBUG)->data)
+	{
+		printf("+++ DEBUG INFOS +++\n");
+		printf("\tpacket_lost =%ld\n", infos->stats.packet_sent-infos->stats.packet_received);
+		printf("\ttotal_time  =%.3fms\n", infos->stats.total_time);
+	}
 
 	cleanup_infos(infos);
 }

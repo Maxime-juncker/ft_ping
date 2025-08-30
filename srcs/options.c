@@ -59,8 +59,11 @@ int	load_option(t_option* options, char* argv[], int* idx, int argc)
 	t_option*	option = NULL;
 	char*		arg = argv[*idx];
 
-	while (arg[i] == '-')
+	while (arg[i] == '-' && arg[i])
 		i++;
+
+	if (!arg[i])
+		return E_INVALID;
 	if (i == 0 || i > 2)
 		return 0;
 
@@ -75,6 +78,7 @@ int	load_option(t_option* options, char* argv[], int* idx, int argc)
 			if (option->need_arg && arg[j + 1])
 				return E_INVALID;
 					j++;
+			set_value(option, argv, idx, argc);
 		}
 	}
 	else // e.g: --verbose
@@ -84,9 +88,9 @@ int	load_option(t_option* options, char* argv[], int* idx, int argc)
 			return E_UNKNOW;
 
 		option->data = (void*)0x1;
+		set_value(option, argv, idx, argc);
 	}
 
-	set_value(option, argv, idx, argc);
 	return 0;
 }
 
@@ -136,10 +140,10 @@ t_option* parse_options(int argc, char* argv[])
 		{VERBOSE,			'v',	"verbose",			0, (void*)0x0,	INT },
 		{FLOOD,				'f',	"flood",			0, (void*)0x0,	INT },
 		{IP_TIMESTAMP,		'\0',	"ip-timestamp",		1, (void*)0x0,	INT },
-		{PRELOAD,			'p',	"preload",			1, (void*)0x0,	INT },
+		{PRELOAD,			'l',	"preload",			1, (void*)0x0,	INT },
 		{NUMERIC,			'n',	"numeric",			0, (void*)0x0,	INT },
 		{TIMEOUT,			't',	"timeout",			1, (void*)0x0,	INT },
-		{LINGER,			'l',	"linger",			1, (void*)0x0,	INT },
+		{LINGER,			'W',	"linger",			1, (void*)0x0,	INT },
 		{PATTERN,			'p',	"pattern",			1, (void*)0x0,	INT },
 		{IGNORE_ROUTING,	'r',	"ignore-routine",	0, (void*)0x0,	INT },
 		{SIZE,				's',	"size",				1, (void*)56,	INT },
@@ -166,6 +170,7 @@ t_option* parse_options(int argc, char* argv[])
 		else if (error == E_INVALID)
 		{
 			dprintf(2, "ft_ping: invalid value\n");
+			return NULL;
 		}
 
 	}
