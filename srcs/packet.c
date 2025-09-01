@@ -1,9 +1,12 @@
 #include <asm-generic/socket.h>
+#include <bits/types/struct_iovec.h>
 #include <netinet/ip_icmp.h>
 #include <stdio.h>
 #include <string.h>
 #include <stdlib.h>
 #include <netdb.h>
+#include <sys/socket.h>
+#include <linux/net_tstamp.h>
 
 #include "ft_ping.h"
 #include "options.h"
@@ -79,13 +82,13 @@ int create_socket(t_connection_info *info)
 		perror("setting ttl failed");
 		return -1;
 	}
-
-	int tos = (long)get_option(info->options, TOS)->data;
-	if (setsockopt(info->socketfd, IPPROTO_IP, IP_TOS, &tos, sizeof(size_t)) != 0)
-	{
-		perror("setting ttl failed");
-		return -1;
-	}
+	//
+	// int tos = (long)get_option(info->options, TOS)->data;
+	// if (setsockopt(info->socketfd, IPPROTO_IP, IP_TOS, &tos, sizeof(size_t)) != 0)
+	// {
+	// 	perror("setting ttl failed");
+	// 	return -1;
+	// }
 
 	if (get_option(info->options, IGNORE_ROUTING)->data)
 	{
@@ -96,33 +99,65 @@ int create_socket(t_connection_info *info)
 			return -1;
 		}
 	}
-
-	// char* timestamp = get_option(info->options, IP_TIMESTAMP)->data;
-	int test = 1;
-	if (setsockopt(info->socketfd, SOL_SOCKET, SO_TIMESTAMP, &test, sizeof(int)))
-	{
-		perror("setting timestamp failed");
-		return 1;
-	}
-
+	//
+	// int timestamp = SOF_TIMESTAMPING_SOFTWARE | SOF_TIMESTAMPING_OPT_ID | SOF_TIMESTAMPING_TX_SOFTWARE;
+	// if (setsockopt(info->socketfd, SOL_SOCKET, SO_TIMESTAMPING,&timestamp, sizeof(int)))
+	// {
+	// 	perror("setting timestamp failed");
+	// 	return 1;
+	// }
+	//
 	inet_pton(AF_INET, info->ip, &(info->addr.sin_addr));
 	return 0;
 }
 
+#include <time.h>
+
 int receive_packet(t_connection_info* infos)
 {
 	char				buffer[4086];
+	char				control[4086];
 	int					prev_seq[10] = {-1};
-	struct sockaddr_in	addr;
-	socklen_t			addr_len = sizeof(socklen_t);
+	struct msghdr		msg;
+	struct iovec		iov[1];
 	struct iphdr*		hdr;
 
-	infos->bytes = recvfrom(infos->socketfd, buffer, sizeof(buffer), 0, (struct sockaddr*)&addr, &addr_len);
+
+	bzero(&msg, sizeof(struct msghdr));
+
+	iov[0].iov_base = buffer;
+	iov[0].iov_len = sizeof(buffer);
+	msg.msg_iov = iov;
+	msg.msg_iovlen = 1;
+
+	msg.msg_control = control;
+    msg.msg_controllen = sizeof(control);
+
+
+	infos->bytes = recvmsg(infos->socketfd, &msg, 0);
 	if (infos->bytes < 0)
 	{
-		perror("recvfrom");
+		perror("recvmsg");
 		return 1;
 	}
+
+
+	// struct cmsghdr* cm = CMSG_FIRSTHDR(&msg);
+	// for (cm = CMSG_FIRSTHDR(&msg); cm; cm = CMSG_NXTHDR(&msg, cm))
+	// {
+	// 	// printf("%d\n", cm->cmsg_type);
+	// 	// if (cm->cmsg_level == SOL_SOCKET &&
+	// 	// 	cm->cmsg_type == SO_TIMESTAMPING)
+	// 	// {
+	// 	// 	struct timeval* tv = (struct timeval *)CMSG_DATA(cm);
+	// 	// 	            printf("Packet timestamp: %ld.%06ld seconds\n", 
+	// 	//                  (long)tv->tv_sec, (long)tv->tv_usec);
+	// 	// 	struct tm *tm_info = localtime(&tv->tv_sec);
+	// 	//           char time_string[100];
+	// 	//           strftime(time_string, sizeof(time_string), "%Y-%m-%d %H:%M:%S", tm_info);
+	// 	//           printf("Human readable: %s.%06ld\n", time_string, (long)tv->tv_usec);
+	// 	// }
+	// }
 
 	if (get_option(infos->options, DEBUG)->data)
 		show_packet((unsigned char*)buffer, infos->bytes);
@@ -137,10 +172,19 @@ int receive_packet(t_connection_info* infos)
 	prev_seq[icmp->icmp_seq%10] = icmp->icmp_seq;
 	infos->response_icmp = icmp;
 
-	// infos->bytes -= sizeof(struct iphdr); // only want payload + icmp header
-
 	hdr = (struct iphdr*)buffer;
 	infos->packet_ttl = hdr->ttl;
+
+	infos->packet_ttl = hdr->ttl;
 	infos->stats.packet_received++;
+
+	if (icmp->icmp_type == ICMP_TIME_EXCEEDED)
+	{
+		printf("%ld bytes from _gateway (%s): Time to Live exceeded\n", infos->bytes, inet_ntoa(*(struct in_addr*)&hdr->saddr));
+		wait_interval(infos);
+		return 1;
+	// printf("Source IP: %s\n", );
+	}
+
 	return 0;
 }

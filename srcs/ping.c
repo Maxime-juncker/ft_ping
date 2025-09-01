@@ -12,6 +12,16 @@
 #include "text.h"
 #include "ft_ping.h"
 
+void wait_interval(t_connection_info* infos)
+{
+	if (get_option(infos->options, FLOOD)->data)
+		usleep(1);
+	else if (get_option(infos->options, PRELOAD)->data)
+		return;
+	else
+		sleep((long)get_option(infos->options, INTERVAL)->data);
+}
+
 void ping_loop(t_connection_info* infos)
 {
 	fd_set			readfds;
@@ -53,12 +63,7 @@ void ping_loop(t_connection_info* infos)
 		if (timeout > 0 && infos->curr_time > timeout)
 			ping_shutdown(infos);	
 
-		if (get_option(infos->options, FLOOD)->data)
-			usleep(1);
-		else if (get_option(infos->options, PRELOAD)->data)
-			continue;
-		else
-			sleep((long)get_option(infos->options, INTERVAL)->data);
+		wait_interval(infos);
 	}
 }
 

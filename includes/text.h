@@ -20,7 +20,6 @@
 "   -v, --verbose              verbose output\n"									\
 "   -w, --timeout=N            stop after N seconds\n"								\
 "   -W, --linger=N             number of seconds to wait for response\n\n"			\
-"  Options valid for --echo requests:\n\n"											\
 "   -f, --flood                flood ping (root only)]\n"							\
 "       --ip-timestamp=FLAG    IP timestamp of type FLAG, which is one of\n"		\
 "                              \"tsonly\" and \"tsaddr\"\n"							\
@@ -40,7 +39,7 @@
             "\t[--ip-timestamp=FLAG] [--preload=NUMBER] [--pattern=PATTERN]\n"				\
             "\t[--quiet] [--size=NUMBER] [--help] [--usage] [--version]\n"					\
 			"\tHOST ...\n"
-#define VERSION_TXT "ft_ping 1.0\nblablablablalblablablablalbalbalbalba[....]\nWritten by mjunker"
+#define VERSION_TXT "ft_ping 1.0\nblablablablalblablablablalbalbalbalba[....]\nWritten by mjunker\n"
 
 int show_text(t_option* options);
 void print_info(t_connection_info* infos, float timer);

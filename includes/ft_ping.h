@@ -49,6 +49,15 @@ typedef struct s_connection_info
 
 } t_connection_info;
 
+struct ip_timestamp_option
+{
+	uint8_t code;
+	uint8_t length;
+	uint8_t pointer;
+	uint8_t flags;
+	uint32_t data[9];
+};
+
 extern int stop;
 
 void sig_handler(int signal);
@@ -73,5 +82,6 @@ struct addrinfo*	getAddrIP(const char* name, t_connection_info* info);
 void	ping_loop(t_connection_info* infos);
 int		init(t_connection_info* infos, int argc, char* argv[]);
 void	ping_shutdown(t_connection_info* infos);
+void wait_interval(t_connection_info* infos);
 
 #endif
