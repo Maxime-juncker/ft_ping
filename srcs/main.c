@@ -6,7 +6,9 @@ int main(int argc, char *argv[])
 
 	int error = init(&info, argc, argv);
 	if (error != 0)
+	{
 		return error;
+	}
 
 	ping_loop(&info);
 	ping_shutdown(&info);

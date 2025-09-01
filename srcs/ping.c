@@ -6,6 +6,7 @@
 #include <netdb.h>
 #include <netinet/ip_icmp.h>
 #include <sys/signal.h>
+#include <stdlib.h>
 
 #include "options.h"
 #include "text.h"
@@ -31,7 +32,8 @@ void ping_loop(t_connection_info* infos)
 		if (nbsent < 0)
 		{
 			perror("ft_ping: sending packet");
-			ping_shutdown(infos);
+			cleanup_infos(infos);
+			exit(1);
 		}
 		if (get_option(infos->options, FLOOD)->data)
 		{

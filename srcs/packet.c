@@ -1,3 +1,4 @@
+#include <asm-generic/socket.h>
 #include <netinet/ip_icmp.h>
 #include <stdio.h>
 #include <string.h>
@@ -77,6 +78,31 @@ int create_socket(t_connection_info *info)
 	{
 		perror("setting ttl failed");
 		return -1;
+	}
+
+	int tos = (long)get_option(info->options, TOS)->data;
+	if (setsockopt(info->socketfd, IPPROTO_IP, IP_TOS, &tos, sizeof(size_t)) != 0)
+	{
+		perror("setting ttl failed");
+		return -1;
+	}
+
+	if (get_option(info->options, IGNORE_ROUTING)->data)
+	{
+		int opt = 1;
+		if (setsockopt(info->socketfd, SOL_SOCKET, SO_DONTROUTE, &opt, sizeof(int)))
+		{
+			perror("setting ignore routing failed");
+			return -1;
+		}
+	}
+
+	// char* timestamp = get_option(info->options, IP_TIMESTAMP)->data;
+	int test = 1;
+	if (setsockopt(info->socketfd, SOL_SOCKET, SO_TIMESTAMP, &test, sizeof(int)))
+	{
+		perror("setting timestamp failed");
+		return 1;
 	}
 
 	inet_pton(AF_INET, info->ip, &(info->addr.sin_addr));

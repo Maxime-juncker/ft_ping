@@ -138,7 +138,7 @@ t_option* parse_options(int argc, char* argv[])
 		{HELP,				'?',	"help",				0, (void*)0x0,	INT },
 		{VERBOSE,			'v',	"verbose",			0, (void*)0x0,	INT },
 		{FLOOD,				'f',	"flood",			0, (void*)0x0,	INT },
-		{IP_TIMESTAMP,		'\0',	"ip-timestamp",		1, (void*)0x0,	INT },
+		{IP_TIMESTAMP,		'\0',	"ip-timestamp",		1, (void*)0x0,	STRING },
 		{PRELOAD,			'l',	"preload",			1, (void*)0x0,	INT },
 		{NUMERIC,			'n',	"numeric",			0, (void*)0x0,	INT },
 		{TIMEOUT,			'w',	"timeout",			1, (void*)0x0,	INT },
