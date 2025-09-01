@@ -44,7 +44,7 @@ int set_value(t_option* option, char* argv[], int* idx, int argc)
 			option->data = argv[*idx];
 		else
 		{
-			option->data = (void*)strtol(argv[*idx], &end, 10);
+			option->data = (void*)strtol(argv[*idx], &end, option->type == HEX ? 16 : 10);
 			if (end[0] != '\0')
 				return E_INVALID;
 		}
@@ -103,7 +103,7 @@ void show_options(t_option* options)
 			printf("\t--%s (-%c) => %ld\n", options[i].name, options[i].c, (long)options[i].data);
 		if (options[i].type == STRING)
 			printf("\t--%s (-%c) => \"%s\"\n", options[i].name, options[i].c, (char*)options[i].data);
-		if (options[i].type == VOID)
+		if (options[i].type == VOID || options[i].type == HEX)
 			printf("\t--%s (-%c) => %p\n", options[i].name, options[i].c, options[i].data);
 		i++;
 	}
@@ -143,7 +143,7 @@ t_option* parse_options(int argc, char* argv[])
 		{NUMERIC,			'n',	"numeric",			0, (void*)0x0,	INT },
 		{TIMEOUT,			'w',	"timeout",			1, (void*)0x0,	INT },
 		{LINGER,			'W',	"linger",			1, (void*)0x0,	INT },
-		{PATTERN,			'p',	"pattern",			1, (void*)0x0,	INT },
+		{PATTERN,			'p',	"pattern",			1, (void*)0x0,	HEX },
 		{IGNORE_ROUTING,	'r',	"ignore-routine",	0, (void*)0x0,	INT },
 		{SIZE,				's',	"size",				1, (void*)56,	INT },
 		{TOS,				'T',	"tos",				1, (void*)0x0,	INT },

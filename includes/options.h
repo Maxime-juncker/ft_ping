@@ -32,6 +32,7 @@ typedef enum e_option_type
 typedef enum e_ctypes
 {
 	INT = 0,
+	HEX,
 	STRING,
 	VOID,
 }	ctypes;

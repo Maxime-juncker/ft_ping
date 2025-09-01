@@ -1,10 +1,33 @@
 #include <netinet/ip_icmp.h>
 #include <stdio.h>
-#include <strings.h>
+#include <string.h>
 #include <stdlib.h>
 #include <netdb.h>
 
 #include "ft_ping.h"
+#include "options.h"
+
+void show_packet(unsigned char* packet, size_t size)
+{
+	size_t i;
+	printf("+++ PACKET +++\n");
+	for (i = 0; i < size; i++)
+	{
+		printf("%c%X", packet[i] < 16 ? '0' : '\0', packet[i]);
+		if (i % 10 == 9)
+			printf("\n");
+		else
+			printf(" ");
+	}
+
+	while (i % 10 > 0)
+	{
+		printf(".. ");
+		i++;
+	}
+	
+	printf("\n");
+}
 
 void get_new_packet(t_connection_info* info)
 {
@@ -12,7 +35,9 @@ void get_new_packet(t_connection_info* info)
 	size_t		packet_size = (long)get_option(info->options, SIZE)->data;
 
 	struct icmp* icmp = (struct icmp*)info->packet;
-	bzero(info->packet, packet_size);
+	// memset(info->packet, 10, packet_size);
+	memset(info->packet, (long)get_option(info->options, PATTERN)->data, packet_size);
+	bzero(icmp, sizeof(struct icmp));
 
 	icmp->icmp_type = ICMP_ECHO;
 	icmp->icmp_code = 0;
@@ -21,13 +46,17 @@ void get_new_packet(t_connection_info* info)
 	icmp->icmp_cksum = calculate_checksum((unsigned char*)info->packet, packet_size);
 	info->icmp = icmp;
 	seq++;
+
+	if (get_option(info->options, DEBUG)->data)
+		show_packet(info->packet, packet_size);
 }
 
 int create_socket(t_connection_info *info)
 {
 	// create packet buffer
 	long packet_size = (long)get_option(info->options, SIZE)->data;
-	packet_size = (long)set_option(info->options, SIZE, (void*)(packet_size + sizeof(struct icmp*)))->data;
+	packet_size = (long)set_option(info->options, SIZE, (void*)(packet_size + sizeof(struct icmp)))->data;
+	
 	info->packet = calloc(1, packet_size);
 	if (!info->packet)
 		return 1;
@@ -69,6 +98,9 @@ int receive_packet(t_connection_info* infos)
 		return 1;
 	}
 
+	if (get_option(infos->options, DEBUG)->data)
+		show_packet((unsigned char*)buffer, infos->bytes);
+
 	struct icmp* icmp = (struct icmp*)(buffer + sizeof(struct iphdr));
 	infos->is_dup = 0;
 	for (int i = 0; i < 10; i++)
@@ -79,7 +111,7 @@ int receive_packet(t_connection_info* infos)
 	prev_seq[icmp->icmp_seq%10] = icmp->icmp_seq;
 	infos->response_icmp = icmp;
 
-	infos->bytes -= sizeof(struct iphdr); // only want payload + icmp header
+	// infos->bytes -= sizeof(struct iphdr); // only want payload + icmp header
 
 	hdr = (struct iphdr*)buffer;
 	infos->packet_ttl = hdr->ttl;

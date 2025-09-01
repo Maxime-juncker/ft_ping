@@ -4,6 +4,7 @@
 #include <unistd.h>
 #include <sys/select.h>
 #include <netdb.h>
+#include <netinet/ip_icmp.h>
 #include <sys/signal.h>
 
 #include "options.h"
@@ -89,8 +90,7 @@ int init(t_connection_info* infos, int argc, char* argv[])
 	if (create_socket(infos) != 0)
 		return 1;
 
-
-	printf("PING %s (%s): %ld data bytes", infos->name, infos->ip, (long)get_option(infos->options, SIZE)->data - sizeof(struct icmp*));
+	printf("PING %s (%s): %ld data bytes", infos->name, infos->ip, (long)get_option(infos->options, SIZE)->data - sizeof(struct icmp));
 	if (get_option(infos->options, VERBOSE)->data)
 		printf(", id %p = %d", (void*)(long)infos->pid, infos->pid);
 	printf("\n");

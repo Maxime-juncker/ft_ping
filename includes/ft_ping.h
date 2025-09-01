@@ -35,7 +35,7 @@ typedef struct s_connection_info
 	struct icmp*		response_icmp;
 	int					is_dup;
 	
-	char*				packet;
+	unsigned char*		packet;
 	unsigned int		packet_ttl;
 	ssize_t				bytes;
 
