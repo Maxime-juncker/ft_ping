@@ -18,6 +18,9 @@ VPATH = srcs
 SRCS =	main.c			\
 		options.c		\
 		utils.c			\
+		ping.c			\
+		ping_utils.c	\
+		packet.c		\
 		text.c			\
 
 OBJS = $(addprefix $(OBJ_DIR)/, $(SRCS:.c=.o))

@@ -2,6 +2,7 @@
 #define TEXT_H
 
 #include "options.h"
+#include "ft_ping.h"
 
 #define SMALL_HELP_TXT "Try 'ft_ping --help' or 'ft_ping --usage' for more information.\n"
 #define MISSING_ARG_TXT "ft_ping: missing host operand\n" \
@@ -40,6 +41,8 @@
             "\t[--quiet] [--size=NUMBER] [--help] [--usage] [--version]\n"					\
 			"\tHOST ...\n"
 #define VERSION_TXT "ft_ping 1.0\nblablablablalblablablablalbalbalbalba[....]\nWritten by mjunker"
+
 int show_text(t_option* options);
+void print_info(t_connection_info* infos, float timer);
 
 #endif // !TEXT_H

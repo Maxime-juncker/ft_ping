@@ -4,7 +4,6 @@
 #include <signal.h>
 #include <sys/time.h>
 
-
 int stop = 0;
 
 void sig_handler(int signal)
@@ -72,3 +71,4 @@ char	*ft_strjoin(char *s1, char const *s2)
 	strlcpy(result + len1, s2, len2 + 1);
 	return (result);
 }
+

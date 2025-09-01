@@ -44,7 +44,8 @@ typedef struct s_connection_info
 
 	char*				buffer_output;
 
-	long				timer;
+	long				begin_time;
+	float				curr_time;
 
 } t_connection_info;
 
@@ -53,10 +54,24 @@ extern int stop;
 void sig_handler(int signal);
 long	get_current_time_micro(void);
 
-void ping_shutdown(t_connection_info* infos);
 void cleanup_infos(t_connection_info* infos);
 uint16_t calculate_checksum(void *b, int len);
 
 char	*ft_strjoin(char *s1, char const *s2);
+
+// packet.c
+void	get_new_packet(t_connection_info* info);
+int		create_socket(t_connection_info *info);
+int		receive_packet(t_connection_info* infos);
+
+// ping_utils.c
+float				update_stats(t_connection_info* infos, long before); 
+void				cleanup_infos(t_connection_info* infos);
+struct addrinfo*	getAddrIP(const char* name, t_connection_info* info);
+
+// ping.c
+void	ping_loop(t_connection_info* infos);
+int		init(t_connection_info* infos, int argc, char* argv[]);
+void	ping_shutdown(t_connection_info* infos);
 
 #endif

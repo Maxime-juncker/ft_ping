@@ -1,4 +1,3 @@
-#include <stdint.h>
 #include <stdlib.h>
 #include <stdio.h>
 #include <string.h>
@@ -142,7 +141,7 @@ t_option* parse_options(int argc, char* argv[])
 		{IP_TIMESTAMP,		'\0',	"ip-timestamp",		1, (void*)0x0,	INT },
 		{PRELOAD,			'l',	"preload",			1, (void*)0x0,	INT },
 		{NUMERIC,			'n',	"numeric",			0, (void*)0x0,	INT },
-		{TIMEOUT,			't',	"timeout",			1, (void*)0x0,	INT },
+		{TIMEOUT,			'w',	"timeout",			1, (void*)0x0,	INT },
 		{LINGER,			'W',	"linger",			1, (void*)0x0,	INT },
 		{PATTERN,			'p',	"pattern",			1, (void*)0x0,	INT },
 		{IGNORE_ROUTING,	'r',	"ignore-routine",	0, (void*)0x0,	INT },
