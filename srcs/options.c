@@ -152,7 +152,7 @@ t_option* parse_options(int argc, char* argv[])
 		{USAGE,				'\0',	"usage",			0, (void*)0x0,	INT },
 		{DEBUG,				'd',	"debug",			0, (void*)0x0,	INT },
 		{INTERVAL,			'i',	"interval",			1, (void*)0x1,	INT },
-		{TTL,				'\0',	"ttl",				1, (void*)255,	INT },
+		{TTL,				'\0',	"ttl",				1, (void*)64,	INT },
 		{NAME,				'\0',	"",					0, (void*)0x0,	STRING },
 		{NONE,				'\0',	"",					0, (void*)0x0,	INT },
 	};
