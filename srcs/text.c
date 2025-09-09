@@ -42,7 +42,7 @@ void print_info(t_connection_info* infos, float timer)
 
 	bzero(&buffer, 1024);
 	sprintf(buffer, "%ld bytes from %s: icmp_seq=%d ttl=%u time=%.3f ms%s\n",
-		infos->bytes - sizeof(struct iphdr) - sizeof(struct icmp) + 8,
+		infos->bytes,
 		infos->ip, infos->icmp->icmp_seq, infos->packet_ttl, timer, infos->is_dup ? " (!DUP)" : "");
 	
 	// to max out performance, print into buffer to avoid stdout

@@ -14,6 +14,25 @@
 #include "ft_ping.h"
 #include "options.h"
 
+char* resolve_hostname(const char* ip)
+{
+	struct sockaddr_in	sa;
+	socklen_t			len;
+	char				hbuf[1024]; 
+	bzero(&sa, sizeof(struct sockaddr_in));
+
+	sa.sin_family = AF_INET;
+	sa.sin_addr.s_addr = inet_addr(ip);
+	len = sizeof(struct sockaddr_in);
+
+	if (getnameinfo((struct sockaddr*)&sa, len, hbuf, sizeof(hbuf), NULL, 0, NI_DGRAM) != 0)
+	{
+		perror("could not resolve hostname");
+		return NULL;
+	}
+	return strdup(hbuf);
+}
+
 void show_packet(unsigned char* packet, size_t size)
 {
 	size_t	i;
@@ -134,7 +153,7 @@ int receive_packet(t_connection_info* infos)
     msg.msg_controllen = sizeof(control);
 
 
-	infos->bytes = recvmsg(infos->socketfd, &msg, 0);
+	infos->bytes = recvmsg(infos->socketfd, &msg, 0) - sizeof(struct iphdr) - sizeof(struct icmp) + 8;
 	if (infos->bytes < 0)
 	{
 		perror("recvmsg");
@@ -161,7 +180,8 @@ int receive_packet(t_connection_info* infos)
 
 	if (icmp->icmp_type == ICMP_TIME_EXCEEDED)
 	{
-		printf("%ld bytes from _gateway (%s): Time to Live exceeded\n", infos->bytes, inet_ntoa(*(struct in_addr*)&hdr->saddr));
+		char*	ip = inet_ntoa(*(struct in_addr*)&hdr->saddr);
+		printf("%ld bytes from %s (%s): Time to Live exceeded\n", infos->bytes, resolve_hostname(ip), ip);
 		wait_interval(infos);
 		return 1;
 	}
