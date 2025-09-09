@@ -16,7 +16,7 @@ float update_stats(t_connection_info* infos, long before)
 	infos->curr_time = (float)(get_current_time_micro() - infos->begin_time) / 1000000;
 	if (time_ms > 0)
 	{
-		long linger = (long)get_option(infos->options, LINGER)->data;
+		long linger = get_option(infos->options, LINGER)->data.dec;
 		if (linger > 0 && time_sec > linger)
 		{
 			ping_shutdown(infos);

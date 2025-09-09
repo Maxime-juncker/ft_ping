@@ -14,12 +14,12 @@
 
 void wait_interval(t_connection_info* infos)
 {
-	if (get_option(infos->options, FLOOD)->data)
+	if (get_option(infos->options, FLOOD)->data.dec)
 		usleep(1);
-	else if (get_option(infos->options, PRELOAD)->data)
+	else if (get_option(infos->options, PRELOAD)->data.dec)
 		return;
 	else
-		sleep((long)get_option(infos->options, INTERVAL)->data);
+		sleep(get_option(infos->options, INTERVAL)->data.dec);
 }
 
 void ping_loop(t_connection_info* infos)
@@ -37,7 +37,7 @@ void ping_loop(t_connection_info* infos)
 		FD_SET(infos->socketfd, &readfds);
 
 		long before = get_current_time_micro();
-		ssize_t nbsent = sendto(infos->socketfd, infos->packet, (long)get_option(infos->options, SIZE)->data, 0,
+		ssize_t nbsent = sendto(infos->socketfd, infos->packet, get_option(infos->options, SIZE)->data.dec, 0,
 						  (struct sockaddr *)&infos->addr, sizeof(infos->addr));
 		if (nbsent < 0)
 		{
@@ -45,7 +45,7 @@ void ping_loop(t_connection_info* infos)
 			cleanup_infos(infos);
 			exit(1);
 		}
-		if (get_option(infos->options, FLOOD)->data)
+		if (get_option(infos->options, FLOOD)->data.dec)
 		{
 			printf(".");
 		}
@@ -59,7 +59,7 @@ void ping_loop(t_connection_info* infos)
 			print_info(infos, timer);
 		}
 	
-		long timeout = (long)get_option(infos->options, TIMEOUT)->data;
+		long timeout = get_option(infos->options, TIMEOUT)->data.dec;
 		if (timeout > 0 && infos->curr_time > timeout)
 			ping_shutdown(infos);	
 
@@ -86,7 +86,7 @@ int init(t_connection_info* infos, int argc, char* argv[])
 	if (show_text(infos->options))
 		return 1;
 
-	infos->name = get_option(infos->options, NAME)->data;
+	infos->name = get_option(infos->options, NAME)->data.str;
 	infos->pid = getpid();
 	infos->addrinfo = getAddrIP(infos->name, infos);
 	if (infos->addrinfo == NULL)
@@ -97,8 +97,8 @@ int init(t_connection_info* infos, int argc, char* argv[])
 	if (create_socket(infos) != 0)
 		return 1;
 
-	printf("PING %s (%s): %ld data bytes", infos->name, infos->ip, (long)get_option(infos->options, SIZE)->data - sizeof(struct icmp));
-	if (get_option(infos->options, VERBOSE)->data)
+	printf("PING %s (%s): %ld data bytes", infos->name, infos->ip, get_option(infos->options, SIZE)->data.dec - sizeof(struct icmp));
+	if (get_option(infos->options, VERBOSE)->data.dec)
 		printf(", id %p = %d", (void*)(long)infos->pid, infos->pid);
 	printf("\n");
 
@@ -130,7 +130,7 @@ void ping_shutdown(t_connection_info* infos)
 	printf("round-trip min/avg/max/stddev = %.3f/%.3f/%.3f/%.3f ms\n",
 		infos->stats.min, avg, infos->stats.max, variance);
 
-	if (get_option(infos->options, DEBUG)->data)
+	if (get_option(infos->options, DEBUG)->data.dec)
 	{
 		printf("+++ DEBUG INFOS +++\n");
 		printf("\tpacket_lost =%ld\n", infos->stats.packet_sent-infos->stats.packet_received);

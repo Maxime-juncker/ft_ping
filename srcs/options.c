@@ -1,6 +1,6 @@
 #include <stdlib.h>
-#include <stdio.h>
 #include <string.h>
+#include <stdio.h>
 
 #include "options.h"
 #include "text.h"
@@ -34,21 +34,29 @@ int set_value(t_option* option, char* argv[], int* idx, int argc)
 {
 	char*	end;
 	if (option->need_arg == 0)
-		option->data = (void*)0x1;
+		option->data.dec = 1;
 	else
 	{
 		if (*idx + 1 >= argc)
 			return E_INVALID;
 		*idx += 1;
 		if (option->type == STRING)
-			option->data = argv[*idx];
+			option->data.str = argv[*idx];
+		else if (option->type == DOUBLE)
+		{
+			option->data.fract = strtod(argv[*idx], &end);
+			if (end[0] != '\0')
+				return E_INVALID;
+		}
 		else
 		{
-			option->data = (void*)strtol(argv[*idx], &end, option->type == HEX ? 16 : 10);
+			option->data.dec = strtol(argv[*idx], &end, option->type == HEX ? 16 : 10);
 			if (end[0] != '\0')
 				return E_INVALID;
 		}
 	}
+
+	option->user_set = 1;
 	return 0;
 }
 
@@ -86,10 +94,9 @@ int	load_option(t_option* options, char* argv[], int* idx, int argc)
 		if (option == NULL)
 			return E_UNKNOW;
 
-		option->data = (void*)0x1;
+		option->data.dec = 1;
 		set_value(option, argv, idx, argc);
 	}
-
 	return 0;
 }
 
@@ -99,18 +106,23 @@ void show_options(t_option* options)
 	printf("+++ options +++\n");
 	while (options[i].id != NONE)
 	{
+		printf("\t--%s (-%c) => %s", options[i].name, options[i].c, \
+				options[i].user_set ? RED : WHITE);
 		if (options[i].type == INT)
-			printf("\t--%s (-%c) => %ld\n", options[i].name, options[i].c, (long)options[i].data);
+			printf("%ld",		options[i].data.dec);
+		if (options[i].type == DOUBLE)
+			printf("%.2lf",		options[i].data.fract);
 		if (options[i].type == STRING)
-			printf("\t--%s (-%c) => \"%s\"\n", options[i].name, options[i].c, (char*)options[i].data);
+			printf("\"%s\"",	options[i].data.str);
 		if (options[i].type == VOID || options[i].type == HEX)
-			printf("\t--%s (-%c) => %p\n", options[i].name, options[i].c, options[i].data);
+			printf("%p",		options[i].data.ptr);
+		printf("\n" RESET);
 		i++;
 	}
 	printf("\n");
 }
 
-t_option* set_option(t_option* options, int id, void* data)
+t_option* set_option(t_option* options, int id, union u_types data)
 {
 	t_option* option = get_option(options, id);
 	if (options == NULL)
@@ -135,26 +147,26 @@ t_option* parse_options(int argc, char* argv[])
 {
 	t_option		options[] =
 	{
-		{HELP,				'?',	"help",				0, (void*)0x0,	INT },
-		{VERBOSE,			'v',	"verbose",			0, (void*)0x0,	INT },
-		{FLOOD,				'f',	"flood",			0, (void*)0x0,	INT },
-		{IP_TIMESTAMP,		'\0',	"ip-timestamp",		1, (void*)0x0,	STRING },
-		{PRELOAD,			'l',	"preload",			1, (void*)0x0,	INT },
-		{NUMERIC,			'n',	"numeric",			0, (void*)0x0,	INT },
-		{TIMEOUT,			'w',	"timeout",			1, (void*)0x0,	INT },
-		{LINGER,			'W',	"linger",			1, (void*)0x0,	INT },
-		{PATTERN,			'p',	"pattern",			1, (void*)0x0,	HEX },
-		{IGNORE_ROUTING,	'r',	"ignore-routine",	0, (void*)0x0,	INT },
-		{SIZE,				's',	"size",				1, (void*)56,	INT },
-		{TOS,				'T',	"tos",				1, (void*)0x0,	INT },
-		{QUIET,				'q',	"quiet",			0, (void*)0x0,	INT },
-		{VERSION,			'V',	"version",			0, (void*)0x0,	INT },
-		{USAGE,				'\0',	"usage",			0, (void*)0x0,	INT },
-		{DEBUG,				'd',	"debug",			0, (void*)0x0,	INT },
-		{INTERVAL,			'i',	"interval",			1, (void*)0x1,	INT },
-		{TTL,				'\0',	"ttl",				1, (void*)64,	INT },
-		{NAME,				'\0',	"",					0, (void*)0x0,	STRING },
-		{NONE,				'\0',	"",					0, (void*)0x0,	INT },
+		{HELP,				'?',	"help",				0, (t_opttype){ .dec = 0 },		INT,	0},
+		{VERBOSE,			'v',	"verbose",			0, (t_opttype){ .dec = 0 },		INT,	0},
+		{FLOOD,				'f',	"flood",			0, (t_opttype){ .dec = 0 },		INT,	0},
+		{IP_TIMESTAMP,		'\0',	"ip-timestamp",		1, (t_opttype){ .dec = 0 },		STRING,	0},
+		{PRELOAD,			'l',	"preload",			1, (t_opttype){ .dec = 0 },		INT,	0},
+		{NUMERIC,			'n',	"numeric",			0, (t_opttype){ .dec = 0 },		INT,	0},
+		{TIMEOUT,			'w',	"timeout",			1, (t_opttype){ .dec = 0 },		INT,	0},
+		{LINGER,			'W',	"linger",			1, (t_opttype){ .dec = 0 },		INT,	0},
+		{PATTERN,			'p',	"pattern",			1, (t_opttype){ .dec = 0 },		HEX,	0},
+		{IGNORE_ROUTING,	'r',	"ignore-routine",	0, (t_opttype){ .dec = 0 },		INT,	0},
+		{SIZE,				's',	"size",				1, (t_opttype){ .dec = 56 },	INT,	0},
+		{TOS,				'T',	"tos",				1, (t_opttype){ .dec = 0 },		INT,	0},
+		{QUIET,				'q',	"quiet",			0, (t_opttype){ .dec = 0 },		INT,	0},
+		{VERSION,			'V',	"version",			0, (t_opttype){ .dec = 0 },		INT,	0},
+		{USAGE,				'\0',	"usage",			0, (t_opttype){ .dec = 0 },		INT,	0},
+		{DEBUG,				'd',	"debug",			0, (t_opttype){ .dec = 0 },		INT,	0},
+		{INTERVAL,			'i',	"interval",			1, (t_opttype){ .dec = 1 },		INT,	0},
+		{TTL,				'\0',	"ttl",				1, (t_opttype){ .dec = 64 },	INT,	0},
+		{NAME,				'\0',	"",					0, (t_opttype){ .dec = 0 },		STRING,	0},
+		{NONE,				'\0',	"",					0, (t_opttype){ .dec = 0 },		INT,	0},	
 	};
 
 	for (int i = 1; i < argc; i++)
@@ -175,16 +187,15 @@ t_option* parse_options(int argc, char* argv[])
 	}
 
 	if (argv[argc-1][0] == '-' &&
-	 !(get_option(options, VERSION)->data ||
-		get_option(options, HELP)->data ||
-		get_option(options, USAGE)->data))
+	 !(	get_option(options, HELP)->data.fract ||
+		get_option(options, USAGE)->data.fract))
 	{
 		dprintf(2, "ft_ping: missing host operand\n");
 		dprintf(2, SMALL_HELP_TXT);
 		return NULL;
 	}
 
-	set_option(options, NAME, argv[argc-1]);
+	set_option(options, NAME, (t_opttype) { .str = argv[argc-1] });
 
 	t_option* cpy = malloc(sizeof(options));
 	if (cpy == NULL)

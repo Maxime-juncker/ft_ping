@@ -6,22 +6,22 @@
 
 int show_text(t_option* options)
 {
-	if ((long)get_option(options, HELP)->data == 1)
+	if (get_option(options, HELP)->data.dec == 1)
 	{
 		printf(HELP_TXT);
 		return 1;
 	}
-	else if ((long)get_option(options, USAGE)->data == 1)
+	else if (get_option(options, USAGE)->data.dec == 1)
 	{
 		printf(USAGE_TXT);
 		return 1;
 	}
-	else if ((long)get_option(options, VERSION)->data == 1)
+	else if (get_option(options, VERSION)->data.dec == 1)
 	{
 		printf(VERSION_TXT);
 		return 1;
 	}
-	if ((long)get_option(options, DEBUG)->data == 1)
+	if (get_option(options, DEBUG)->data.dec == 1)
 		show_options(options);
 
 	return 0;
@@ -31,10 +31,10 @@ void print_info(t_connection_info* infos, float timer)
 {
 	static char buffer[1024];
 
-	if (get_option(infos->options, QUIET)->data)
+	if (get_option(infos->options, QUIET)->data.dec)
 		return ;
 
-	if (get_option(infos->options, FLOOD)->data)
+	if (get_option(infos->options, FLOOD)->data.dec)
 	{
 		printf("\b");
 		return ;
@@ -46,11 +46,11 @@ void print_info(t_connection_info* infos, float timer)
 		infos->ip, infos->icmp->icmp_seq, infos->packet_ttl, timer, infos->is_dup ? " (!DUP)" : "");
 	
 	// to max out performance, print into buffer to avoid stdout
-	size_t preload = (long)get_option(infos->options, PRELOAD)->data;
+	size_t preload = get_option(infos->options, PRELOAD)->data.dec;
 	if (preload)
 	{
 		if (infos->stats.packet_sent > preload)
-			set_option(infos->options, PRELOAD, 0x0);
+			set_option(infos->options, PRELOAD, (t_opttype){.dec = 0});
 		else
 		{
 			infos->buffer_output = ft_strjoin(infos->buffer_output, buffer);
