@@ -79,7 +79,7 @@ void				cleanup_infos(t_connection_info* infos);
 struct addrinfo*	getAddrIP(const char* name, t_connection_info* info);
 
 // ping.c
-void	ping_loop(t_connection_info* infos);
+int	ping_loop(t_connection_info* infos);
 int		init(t_connection_info* infos, int argc, char* argv[]);
 void	ping_shutdown(t_connection_info* infos);
 void wait_interval(t_connection_info* infos);

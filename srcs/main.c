@@ -7,9 +7,16 @@ int main(int argc, char *argv[])
 	int error = init(&info, argc, argv);
 	if (error != 0)
 	{
+		cleanup_infos(&info);
 		return error;
 	}
 
-	ping_loop(&info);
+	error = ping_loop(&info);
+	if (error != 0)
+	{
+		cleanup_infos(&info);
+		return error;
+	}
+	
 	ping_shutdown(&info);
 }

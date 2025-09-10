@@ -39,7 +39,6 @@ all:
 
 debug:
 	$(MAKE) MODE=debug all
-	sudo ./ft_ping "google.com"
 
 $(OBJ_DIR):
 	mkdir -p $(OBJ_DIR)

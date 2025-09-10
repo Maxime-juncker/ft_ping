@@ -22,49 +22,58 @@ void wait_interval(t_connection_info* infos)
 		sleep(get_option(infos->options, INTERVAL)->data.dec);
 }
 
-void ping_loop(t_connection_info* infos)
+int wait_response(t_connection_info* infos, long before)
 {
 	fd_set			readfds;
-	struct timeval	tv;
-	tv.tv_sec = 5;
-	tv.tv_usec = 0;
+	struct timeval	tv = { .tv_sec = 5, .tv_usec = 0};
+	
+	FD_ZERO(&readfds);
+	FD_SET(infos->socketfd, &readfds);
+	int result = select(infos->socketfd + 1, &readfds, NULL, NULL, &tv);
+	if (result == -1)
+	{
+		perror("ft_ping: select failed");
+		return 1;
+	}
+	if (result > 0 && FD_ISSET(infos->socketfd, &readfds))
+	{
+		if (receive_packet(infos) != 0)
+			return 2;
+		float timer = update_stats(infos, before);
+		print_info(infos, timer);
+	}
 
+	long timeout = get_option(infos->options, TIMEOUT)->data.dec;
+	if (timeout > 0 && infos->curr_time > timeout)
+		return 0;
+	return 0;
+}
+
+int	ping_loop(t_connection_info* infos)
+{
 	while (stop == 0)
 	{
 		get_new_packet(infos);
 
-		FD_ZERO(&readfds);
-		FD_SET(infos->socketfd, &readfds);
-
 		long before = get_current_time_micro();
-		ssize_t nbsent = sendto(infos->socketfd, infos->packet, get_option(infos->options, SIZE)->data.dec, 0,
+		ssize_t nbsent = sendto(infos->socketfd, infos->packet,
+						  get_option(infos->options, SIZE)->data.dec, 0,
 						  (struct sockaddr *)&infos->addr, sizeof(infos->addr));
 		if (nbsent < 0)
 		{
 			perror("ft_ping: sending packet");
-			cleanup_infos(infos);
-			exit(1);
+			return 1;
 		}
 		if (get_option(infos->options, FLOOD)->data.dec)
 		{
 			printf(".");
 		}
 		infos->stats.packet_sent++;
-		int result = select(infos->socketfd + 1, &readfds, NULL, NULL, &tv);
-		if (result > 0 && FD_ISSET(infos->socketfd, &readfds))
-		{
-			if (receive_packet(infos) != 0)
-				continue;
-			float timer = update_stats(infos, before);
-			print_info(infos, timer);
-		}
-	
-		long timeout = get_option(infos->options, TIMEOUT)->data.dec;
-		if (timeout > 0 && infos->curr_time > timeout)
-			ping_shutdown(infos);	
-
+		if (wait_response(infos, before) == 1)
+			return 1;
 		wait_interval(infos);
 	}
+	return 0;
 }
 
 int init(t_connection_info* infos, int argc, char* argv[])
@@ -89,15 +98,20 @@ int init(t_connection_info* infos, int argc, char* argv[])
 	infos->name = get_option(infos->options, NAME)->data.str;
 	infos->pid = getpid();
 	infos->addrinfo = getAddrIP(infos->name, infos);
-	if (infos->addrinfo == NULL)
+	if (infos->addrinfo == NULL || infos->ip == NULL)
 	{
+		cleanup_infos(infos);
 		return 1;
 	}
 	
 	if (create_socket(infos) != 0)
+	{
+		cleanup_infos(infos);
 		return 1;
+	}
 
-	printf("PING %s (%s): %ld data bytes", infos->name, infos->ip, get_option(infos->options, SIZE)->data.dec - sizeof(struct icmp));
+	printf("PING %s (%s): %ld data bytes", infos->name, infos->ip,
+		get_option(infos->options, SIZE)->data.dec - sizeof(struct icmp));
 	if (get_option(infos->options, VERBOSE)->data.dec)
 		printf(", id %p = %d", (void*)(long)infos->pid, infos->pid);
 	printf("\n");

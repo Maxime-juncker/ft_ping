@@ -36,30 +36,28 @@ char* resolve_hostname(const char* ip)
 void show_packet(unsigned char* packet, size_t size)
 {
 	size_t	i;
-	char	buffer[16];
-	printf("+++ DUMP DATA +++\n");
+	char	buffer[17] = {0};
+	printf("+++ DUMP DATA (%ld bytes)+++\n", size);
 	for (i = 0; i < size; i++)
 	{
 		printf("%c%X", packet[i] < 16 ? '0' : '\0', packet[i]);
+		buffer[i % 16] = isprint(packet[i]) ? packet[i] : '.';
 		if (i % 16 == 15)
 			printf("  %s\n", buffer);
 		else if (i % 2)
 			printf(" ");
-		buffer[i % 16] = isprint(packet[i]) ? packet[i] : '.';
 	}
 
 	while (i % 16 > 0)
 	{
 		printf("..");
-		if (i % 2 == 0)
+		if (i % 2)
 			printf(" ");
 		buffer[i % 16] = '.';
 		i++;
 		if (i % 16 == 0)
-			printf("%s\n", buffer);
+			printf(" %s\n", buffer);
 	}
-	
-	printf("\n");
 }
 
 void get_new_packet(t_connection_info* info)
@@ -83,27 +81,8 @@ void get_new_packet(t_connection_info* info)
 		show_packet(info->packet, packet_size);
 }
 
-int create_socket(t_connection_info *info)
+static int set_socket_opts(t_connection_info* info)
 {
-	// create packet buffer
-	long packet_size = get_option(info->options, SIZE)->data.dec;
-	packet_size = set_option(info->options, SIZE, (t_opttype){.dec = packet_size + sizeof(struct icmp)})->data.dec;
-	
-	info->packet = calloc(1, packet_size);
-	if (!info->packet)
-		return 1;
-
-	// setup socket
-	bzero(&info->addr, sizeof(struct sockaddr_in));
-	info->addr.sin_family = AF_INET;
-
-	info->socketfd = socket(info->addrinfo->ai_family, info->addrinfo->ai_socktype, info->addrinfo->ai_protocol);
-	if (info->socketfd == -1)
-	{
-		perror("socket creation");
-		return -1;
-	}
-
 	int ttl = get_option(info->options, TTL)->data.dec;
 	if (setsockopt(info->socketfd, IPPROTO_IP, IP_TTL, &ttl, sizeof(size_t)) != 0)
 	{
@@ -114,21 +93,51 @@ int create_socket(t_connection_info *info)
 	int tos = get_option(info->options, TOS)->data.dec;
 	if (setsockopt(info->socketfd, IPPROTO_IP, IP_TOS, &tos, sizeof(size_t)) != 0)
 	{
-		perror("setting ttl failed");
+		perror("setting tos failed");
 		return -1;
 	}
 
 	if (get_option(info->options, IGNORE_ROUTING)->data.dec)
 	{
 		int opt = 1;
-		if (setsockopt(info->socketfd, SOL_SOCKET, SO_DONTROUTE, &opt, sizeof(int)))
+		if (setsockopt(info->socketfd, SOL_SOCKET, SO_DONTROUTE, &opt, sizeof(int)) != 0)
 		{
 			perror("setting ignore routing failed");
 			return -1;
 		}
 	}
 
-	inet_pton(AF_INET, info->ip, &(info->addr.sin_addr));
+	return 0;
+}
+
+int create_socket(t_connection_info *info)
+{
+	// create packet buffer
+	long packet_size = get_option(info->options, SIZE)->data.dec;
+	packet_size = set_option(info->options, SIZE,
+						  (t_opttype){.dec = packet_size + sizeof(struct icmp)})->data.dec;
+	
+	info->packet = calloc(1, packet_size);
+	if (!info->packet)
+		return 1;
+
+	// setup socket
+	bzero(&info->addr, sizeof(struct sockaddr_in));
+	info->addr.sin_family = AF_INET;
+
+	info->socketfd = socket(info->addrinfo->ai_family, info->addrinfo->ai_socktype,
+						 info->addrinfo->ai_protocol);
+	if (info->socketfd == -1)
+	{
+		perror("socket creation");
+		return -1;
+	}
+
+	if (set_socket_opts(info) != 0)
+		return -1;
+
+	if (inet_pton(AF_INET, info->ip, &(info->addr.sin_addr)) != 1)
+		return -1;
 	return 0;
 }
 
@@ -136,7 +145,7 @@ int receive_packet(t_connection_info* infos)
 {
 	char				buffer[4086];
 	char				control[4086];
-	int					prev_seq[10] = {-1};
+	int					prev_seq[10] = {-1, -1, -1, -1, -1, -1, -1, -1, -1, -1};
 	struct msghdr		msg;
 	struct iovec		iov[1];
 	struct iphdr*		hdr;

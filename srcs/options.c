@@ -165,7 +165,7 @@ t_option* parse_options(int argc, char* argv[])
 		{DEBUG,				'd',	"debug",			0, (t_opttype){ .dec = 0 },		INT,	0},
 		{INTERVAL,			'i',	"interval",			1, (t_opttype){ .dec = 1 },		INT,	0},
 		{TTL,				'\0',	"ttl",				1, (t_opttype){ .dec = 64 },	INT,	0},
-		{NAME,				'\0',	"",					0, (t_opttype){ .dec = 0 },		STRING,	0},
+		{NAME,				'\0',	"",					0, (t_opttype){ .str = 0x0 },	STRING,	0},
 		{NONE,				'\0',	"",					0, (t_opttype){ .dec = 0 },		INT,	0},	
 	};
 

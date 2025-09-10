@@ -42,7 +42,6 @@ void cleanup_infos(t_connection_info* infos)
 	free(infos->options);
 
 	close(infos->socketfd);
-	exit(0);
 }
 
 struct addrinfo* getAddrIP(const char* name, t_connection_info* info)
